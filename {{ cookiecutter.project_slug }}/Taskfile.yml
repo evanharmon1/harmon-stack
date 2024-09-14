@@ -1,0 +1,30 @@
+version: "3"
+tasks:
+  boostrap:
+    cmds:
+      - /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+      - brew install python #TODO: Might need to use a non-homebrew method
+    silent: true
+  install:
+    cmds:
+      - brew bundle --file=Brewfile
+      - python install -r requirements.txt
+    silent: true
+  validate:
+    cmds:
+      - pre-commit run --all-files
+      - task: snyk
+      # - shellcheck osConfig/mac/updateMac.sh
+      # - shellcheck osConfig/mac/setupMac.sh
+      # - shellcheck osConfig/mac/configureMacSettings.sh
+    silent: true
+  security:
+    cmds:
+      - ./osConfig/shell/bin/check_for_pattern.sh "secret" #TODO: Fix path - make relative to project
+      - whispers --config test/whisperConfig.yml --severity BLOCKER,CRITICAL .
+      - task: snyk
+    silent: true
+  snyk:
+    cmds:
+      - snyk test --file=osConfig/languages/python/requirements.txt #TODO: Fix path - make relative to project
+    silent: true

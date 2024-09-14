@@ -1,0 +1,39 @@
+# Checklist - {{ cookiecutter.project_name }}
+
+- [ ] cd {{ cookiecutter.data.projects_directory }}/{{ cookiecutter.project_slug }}
+- [ ] git init or import template, etc.
+- [ ] choose or generate random `"peacock.color": "#ff3d00"` in vscode workspace
+- [ ] Refine Bunch file, move to Bunch system directory, and finally symlink it back to this project's .meta folder
+  - mv .meta/Code\ Project\ -\ KC\ Tech\ Support.bunch /Users/evan/Library/'Mobile Documents'/com~apple~CloudDocs/Bunches
+  - ln -s /Users/evan/Library/Mobile\ Documents/com\~apple\~CloudDocs/Bunches/Code\ Project\ -\ KC\ Tech\ Support.bunch .meta
+- [ ] OPTION: Setup Raycast VS Code Workspace alias
+- [ ] Configure gitignore with [gitignore.io - Create Useful .gitignore Files For Your Project](https://www.toptal.com/developers/gitignore)
+  - use its cli?
+- [ ] OPTION: Create project in Obsidian
+  - advanced-uri to create new project, etc.
+  - Create a link to the Obsidian project somewhere (readme? todo.md?) Other links I should create? GitHub repo
+- [ ] OPTION: Setup remote github repo
+  - Use gh cli tool?
+  - GitHub options
+    - project, issues, wiki, issue templates, pr templates, repo description, private/public, discussions, contributing, code of conduct, funding, etc.
+- [ ] OPTION: Adapt doc files
+  - Taskfile
+  - howzit.md
+  - justfile
+  - todo.md
+- [ ] Setup framework, dependencies, etc.
+  - Python
+    - [cookiecutter](https://cookiecutter.readthedocs.io/en/stable/README.html)
+  - JavaScript
+    - Astro starter templates
+    - Astro cli new project setup command
+  - Java
+    - [Maven Archetype](https://maven.apache.org/guides/introduction/introduction-to-archetypes.html)
+  - Shell
+    - `dev/templates/shellScriptTemplate`
+- [ ] DevOps & DevEx
+  - linting, formatting, etc.
+  - Setup pre-commit
+  - CI/CD
+- [ ] OPTION: Setup Testing
+- [ ] OPTION: Setup Docker dev environment

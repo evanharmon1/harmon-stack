@@ -1,0 +1,66 @@
+{%- if cookiecutter.license == "mit" -%}
+MIT License
+
+Copyright (c) 2024 {{ cookiecutter.data.author_full_name }}
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+{%- elif cookiecutter.license == "private" -%}
+{{ cookiecutter.project_name }} License Agreement
+
+Version 1.0, {{ cookiecutter.data.year }}
+
+1. Grant of License
+
+This software and associated documentation files (the “Software”) are licensed, not sold, to you by {{ cookiecutter.organization }} (“Licensor”) for use strictly in accordance with the terms of this License Agreement. Subject to your compliance with the terms of this License, Licensor grants you a limited, non-exclusive, non-transferable, and revocable license to use the Software solely for your personal or internal business purposes.
+
+2. Restrictions
+
+You may not:
+
+	•	Copy, modify, distribute, or create derivative works of the Software.
+	•	Sublicense, rent, lease, or lend the Software.
+	•	Reverse engineer, decompile, or disassemble the Software, except where such restriction is prohibited by applicable law.
+	•	Use the Software for any commercial or public use without explicit written permission from Licensor.
+
+3. Ownership
+
+Licensor retains all rights, title, and interest in and to the Software, including all intellectual property rights. This License does not transfer any rights or ownership of the Software to you, and all rights not expressly granted are reserved by Licensor.
+
+4. Termination
+
+This License is effective until terminated. Your rights under this License will terminate automatically or cease to be effective without notice from Licensor if you fail to comply with any term of this License. Upon termination of this License, you must stop all use of the Software and destroy all copies of the Software in your possession or control.
+
+5. Disclaimer of Warranties
+
+THE SOFTWARE IS PROVIDED “AS IS” AND “AS AVAILABLE,” WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, OR NON-INFRINGEMENT. LICENSOR DOES NOT WARRANT THAT THE SOFTWARE WILL BE ERROR-FREE OR THAT OPERATION WILL BE UNINTERRUPTED.
+
+6. Limitation of Liability
+
+TO THE EXTENT PERMITTED BY APPLICABLE LAW, LICENSOR SHALL NOT BE LIABLE FOR ANY INDIRECT, INCIDENTAL, SPECIAL, OR CONSEQUENTIAL DAMAGES ARISING OUT OF OR IN CONNECTION WITH THE USE OR INABILITY TO USE THE SOFTWARE, EVEN IF LICENSOR HAS BEEN ADVISED OF THE POSSIBILITY OF SUCH DAMAGES.
+
+7. Governing Law
+
+This License shall be governed by and construed in accordance with the laws of {{ cookiecutter.data.country }}. Any legal action or proceeding arising under this License shall be brought exclusively in the courts located in {{ cookiecutter.data.country }}.
+
+8. Entire Agreement
+
+This License constitutes the entire agreement between you and Licensor regarding the use of the Software and supersedes all prior agreements, whether written or oral, relating to its subject matter.
+
+{% endif %}
