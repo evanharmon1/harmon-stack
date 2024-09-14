@@ -1,0 +1,76 @@
+version: '3'
+services:
+  ubuntu:
+    image: ubuntu:latest
+    ports:
+      - '9998:9998'
+    tty: true
+    command: 'bash'
+    working_dir: /dockerVol
+    volumes:
+      - "./dockerVol:/dockerVol"
+  # fedora:
+
+  #   image: fedora:latest
+  #   ports:
+  #     - '9999:9999'
+  #   tty: true
+  #   command: 'bash'
+  #   working_dir: /dockerVol
+  #   volumes:
+  #     - "./dockerVol:/dockerVol"
+  nginx:
+    image: nginx:stable-alpine
+    ports:
+      - '9999:9999'
+    tty: true
+    working_dir: /dockerVol
+    volumes:
+      - "./dockerVol:/dockerVol"
+      # node:
+#   image: node:latest
+#   ports:
+#     - '8888:8888'
+#   tty: true
+#   command: 'bash'
+#   working_dir: /dockerVol
+#   volumes:
+#     - "./dockerVol:/dockerVol"
+# python:
+#   image: python:3.8
+#   ports:
+#     - '3333:3333'
+#   tty: true
+#   command: 'bash'
+#   working_dir: /dockerVol
+#   volumes:
+#     - "./dockerVol:/dockerVol"
+
+#   activemq:
+#     image: rmohr/activemq:latest
+#     ports:
+#       - 1616:1616
+#       - 161:161
+#       - 672:672
+#       - 1613:1613
+#       - 883:883
+#       - 1614:1614
+#     tty: true
+#     command: 'bash'
+#     working_dir: /dockerVol
+#     volumes:
+#       - "./dockerVol:/dockerVol"
+volumes:
+  dockerVol:
+
+# Jenkins
+# Ansible
+# Puppet
+# Java
+# Ruby
+# Go
+# C#
+# Sensu?
+# Grafana?
+# Artifactory?
+# Vagrant?
