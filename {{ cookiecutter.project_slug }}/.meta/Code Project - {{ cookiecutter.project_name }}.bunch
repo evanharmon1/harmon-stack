@@ -1,9 +1,0 @@
----
-title: Code Project - {{ cookiecutter.project_name }} 🪛
----
-< snippet.code
-
-$ open -a 'Visual Studio Code' {{ cookiecutter.data.projects_directory }}/{{ cookiecutter.project_slug }}/{{ cookiecutter.project_slug }}.code-workspace
-%Visual Studio Code^
-
-< snippet.maximize
