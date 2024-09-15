@@ -1,0 +1,271 @@
+# questions for Copier new project template
+# This file controls the Copier new project utilty.
+# Run it with: `copier path/to/template/cp path/to/destination/repo-name` E.g, `copier harmon-stack .`.
+
+# Potential types: astro, astrowind, nextjs, t3, wdc, sst, python, fastapi, flask, django, dashboard, control panel, go, terraform, pulumi, automattion / pipeline, ansible, kestra, datascience, java
+
+# "_copy_without_render": ["*.html", "*.github", "*scriptTemplates"]
+
+project_name:
+  type: str
+  help: "Formal name of the project (Project Name)"
+  placeholder: "Formal Project Name"
+
+project_slug:
+  type: str
+  placeholder: "project-slug"
+  # "{{ project_name.lower().replace(' ', '-') }}"
+
+project_description:
+  type: str
+  help: "Short description of the project"
+
+project_type:
+  type: str
+  help: "Type of project"
+  choices:
+    - code
+    - project
+    - business
+    - other
+
+git_init:
+  type: bool
+  default: no
+
+git_provider:
+  type: str
+  choices:
+    - github
+    - gitlab
+    - other
+
+create_github_remote:
+  type: bool
+  default: no
+
+include_github_contribution_templates:
+  type: bool
+  help: "Include GitHub Issue templates and CONTRIBUTING.md file"
+  default: yes
+
+cloud:
+  type: str
+  help: "Cloud provider for deployment"
+  choices:
+    - none
+    - netlify
+    - vercel
+    - unraid
+    - gcp
+    - firebase
+    - supabase
+    - aws
+    - do
+    - azure
+    - cloudflare
+    - github_pages
+    - cloudflare_pages
+
+# Include a folder with an infrastructure as code template
+iac:
+  type: str
+  help: "Infrastructre as Code tool"
+  choices:
+    - none
+    - docker
+    - terraform
+    - pulumi
+    - cloudformation
+
+# Include a folder with a CI/CD template
+ci_cd:
+  type: str
+  help: "CI/CD tool"
+  choices:
+    - github_actions
+    - none
+    - gitlab_ci
+
+# Include a folder with a configuration management template
+configuration_management:
+  type: str
+  help: "configuration management tool"
+  choices:
+    - none
+    - ansible
+
+# Include a folder with automation template
+automation_tool:
+  type: str
+  help: "Automation tool"
+  multiline: true
+  choices:
+    - none
+    - kestra
+    - n8n
+
+# Include a folder with script templates
+script_templates:
+  type: bool
+  help: "Script templates"
+  default: no
+
+# Include a folder with web templates
+web_templates:
+  type: bool
+  help: "Web templates like html forms, etc."
+  default: no
+
+# Include a folder with serverless function templates
+serverless_function_templates:
+  type: bool
+  help: "Serverless function templates"
+  default: no
+
+ai_tool:
+  type: str
+  choices:
+    - openai
+    - anthropic
+    - perplexity
+    - gemini
+    - cursor
+
+include_design_files:
+  type: bool
+  default: yes
+
+include_devcontainer:
+  type: bool
+  default: no
+
+author_first_name:
+  type: str
+  default: Evan
+
+author_last_name:
+  type: str
+  default: Harmon
+
+author_full_name:
+  type: str
+  default: "Evan Harmon"
+  # "{{ author_first_name }} + {{ author_last name }}"
+
+author_email:
+  type: str
+  default: "evan@evanharmon.com"
+
+author_url:
+  type: str
+  default: "https://evanharmon.com"
+
+author_git_provider_username:
+  type: str
+  default: evanharmon1
+
+organization:
+  type: str
+  default: "TODO: organization"
+
+organization_url:
+  type: str
+  default: "TODO: organization_url"
+
+organization_email:
+  type: str
+  default: "info@{{ organization_url }}"
+
+repo_url:
+  type: str
+  default: "https://{{ git_provider }}.com/{{ author_git_provider_username }}/{{ project_slug }}"
+
+project_url:
+  type: str
+  default: "TODO: project_url"
+
+license:
+  type: str
+  choices:
+    - mit
+    - private
+
+add_obsidian_project:
+  type: bool
+  default: no
+
+run_task_bootstrap:
+  type: bool
+  default: no
+
+run_task_install:
+  type: bool
+  default: no
+
+docker_hub_username:
+  type: str
+  default: evanharmon1
+
+docker_image:
+  type: str
+  default: "TODO: docker_image"
+
+project_color: "TODO: random_color"
+
+# Paths
+projects_directory: ~/git
+projects_directory_full: "/Users/{{ author_first_name }}/git"
+
+# Demographics
+country: United States
+state: Kansas
+
+# Date & Time
+year: "TODO: year"
+datestamp: "TODO: datestamp"
+timestamp: "TODO: timestamp"
+
+# API Keys
+ai_tool_key:
+  when: false
+  secret: true
+  default: "TODO: ai_tool_key"
+
+opanapi_key:
+  when: false
+  secret: true
+  default: "TODO: opanapi_key"
+
+anthropic_key:
+  when: false
+  secret: true
+  default: "TODO: anthropic_key"
+
+perplexity_key:
+  when: false
+  secret: true
+  default: "TODO: perplexity_key"
+
+gemini_key:
+  when: false
+  secret: true
+  default: "TODO: gemini_key"
+
+cursor_key:
+  when: false
+  secret: true
+  default: "TODO: cursor_key"
+
+_tasks:
+  - command: echo "Starting project generation?"
+
+# Copier Settings
+
+# Automatically use this directory as the root for the copier template
+_subdirectory: template
+
+# Automatically set any variables that contain password or key in copier.yml to be marked as secrets and not added to the .copier-answers.yml file
+_secret_questions:
+  - password
+  - key
