@@ -8,11 +8,11 @@
 
 project_name:
   type: str
-  default:
+  default: "Project Name"
 
 project_slug:
   type: str
-  default:
+  default: "project-slug"
   # "{{ project_name.lower().replace(' ', '-') }}"
 
 project_description:
@@ -116,7 +116,8 @@ author_last_name:
 
 author_full_name:
   type: str
-  default: "{{ author_first_name }} + {{ last name }}"
+  default: "Evan Harmon"
+  # "{{ author_first_name }} + {{ author_last name }}"
 
 author_email:
   type: str
@@ -170,7 +171,7 @@ datestamp: "TODO: datestamp"
 
 timestamp: "TODO: timestamp"
 
-project_color: "TODO: cookiecutter.random_color"
+project_color: "TODO: random_color"
 
 opanapi_key: "TODO: opanapi_key"
 
