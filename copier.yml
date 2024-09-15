@@ -1,0 +1,187 @@
+# questions for Copier new project template
+# This file controls the Copier new project utilty.
+# Run it with: `copier path/to/template path/to/destination` E.g, `copier harmon-stack .`.
+
+# Potential types: astro, astrowind, nextjs, t3, wdc, sst, python, fastapi, flask, django, dashboard, control panel, go, terraform, pulumi, automattion / pipeline, ansible, kestra, datascience, java
+
+# "_copy_without_render": ["*.html", "*.github", "*scriptTemplates"]
+
+project_name:
+  type: str
+  default:
+
+project_slug:
+  type: str
+  default:
+  # "{{ project_name.lower().replace(' ', '-') }}"
+
+project_description:
+  type: str
+  default: "TODO: project_description"
+
+project_type:
+  type: str
+  choices:
+    - basic
+    - project
+    - business
+    - script
+    - infrastructure
+    - docker-compose
+
+project_deployment:
+  type: str
+  choices:
+    - netlify
+    - vercel
+    - gcp
+    - firebase
+    - supabase
+    - aws
+    - do
+    - azure
+    - cloudflare
+    - github_pages
+    - cloudflare_pages
+
+git_init:
+  type: bool
+  default: no
+
+git_provider:
+  type: str
+  choices:
+    - github
+    - gitlab
+
+include_github_workflows:
+  type: bool
+  default: yes
+
+include_github_issue_templates:
+  type: bool
+  default: yes
+
+create_github_remote:
+  type: bool
+  default: no
+
+ai_tool:
+  type: str
+  choices:
+    - openai
+    - anthropic
+    - perplexity
+    - gemini
+
+include_code_templates:
+  type: bool
+  default: yes
+
+include_design_files:
+  type: bool
+  default: yes
+
+include_devcontainer:
+  type: bool
+  default: no
+
+repo_url:
+  type: str
+  default: "https://{{ git_provider }}.com/{{ author_git_provider_username }}/{{ project_slug }}"
+
+project_url:
+  type: str
+  default: "TODO: project_url"
+
+organization:
+  type: str
+  default: "TODO: organization"
+
+organization_url:
+  type: str
+  default: "TODO: organization_url"
+
+organization_email:
+  type: str
+  default: "info@{{ organization_url }}"
+
+author_first_name:
+  type: str
+  default: Evan
+
+author_last_name:
+  type: str
+  default: Harmon
+
+author_full_name:
+  type: str
+  default: "{{ author_first_name }} + {{ last name }}"
+
+author_email:
+  type: str
+  default: "evan@evanharmon.com"
+
+author_url:
+  type: str
+  default: "https://evanharmon.com"
+
+author_git_provider_username:
+  type: str
+  default: evanharmon1
+
+license:
+  type: str
+  choices:
+    - mit
+    - private
+
+add_obsidian_project:
+  type: bool
+  default: no
+
+run_task_bootstrap:
+  type: bool
+  default: no
+
+run_task_install:
+  type: bool
+  default: no
+
+docker_hub_username:
+  type: str
+  default: evanharmon1
+
+docker_image:
+  type: str
+  default: "TODO: docker_image"
+
+projects_directory: ~/git
+
+projects_directory_full: "/Users/{{ author_first_name }}/git"
+
+country: United States
+
+state: Kansas
+
+year: "TODO: year"
+
+datestamp: "TODO: datestamp"
+
+timestamp: "TODO: timestamp"
+
+project_color: "TODO: cookiecutter.random_color"
+
+opanapi_key: "TODO: opanapi_key"
+
+anthropic_key: "TODO: anthropic_key"
+
+perplexity_key: "TODO: perplexity_key"
+
+gemini_key: "TODO: gemini_key"
+
+tasks:
+  - before:
+      - command: echo "Starting project generation..."
+  - after:
+      - command: echo "Project generated successfully."

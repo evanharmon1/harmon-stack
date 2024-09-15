@@ -1,3 +1,0 @@
-# Python requirements for {{ cookiecutter.project_name }}
-
-whispers
