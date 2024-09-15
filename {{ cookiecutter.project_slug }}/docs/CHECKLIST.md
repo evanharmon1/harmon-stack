@@ -2,6 +2,8 @@
 
 - [ ] cd {{ cookiecutter.data.projects_directory }}/{{ cookiecutter.project_slug }}
 - [ ] git init or import template, etc.
+- [ ] create initial release - `git tag -a v0.0.1 -m "Initial release version 0.0.1"`
+- [ ] Create releast in GitHub (Or gh cli - gh relase create)
 - [ ] choose or generate random `"peacock.color": "#ff3d00"` in vscode workspace
 - [ ] Refine Bunch file, move to Bunch system directory, and finally symlink it back to this project's .meta folder
   - mv .meta/Code\ Project\ -\ KC\ Tech\ Support.bunch /Users/evan/Library/'Mobile Documents'/com~apple~CloudDocs/Bunches
