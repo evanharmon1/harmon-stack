@@ -1,0 +1,9 @@
+---
+title: Code Project - Harmon Stack 🪛
+---
+< snippet.code
+
+$ open -a 'Visual Studio Code' ~/git/harmon-stack/harmon-stack.code-workspace
+%Visual Studio Code^
+
+< snippet.maximize
