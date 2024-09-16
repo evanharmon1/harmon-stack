@@ -34,7 +34,7 @@ project_type:
 git_init:
   type: bool
   help: "Initialize git repo?"
-  default: no
+  default: yes
 
 git_provider:
   type: str
@@ -54,7 +54,17 @@ github_remote_create:
 github_contribution_templates:
   type: bool
   help: "Include GitHub Issue templates and CONTRIBUTING.md file?"
-  default: yes
+  default: no
+
+# Include a folder with a CI/CD template
+ci_cd:
+  type: str
+  help: "CI/CD tool"
+  choices:
+    - github_actions
+    - none
+    - gitlab_ci
+  default: github_actions
 
 license:
   type: str
@@ -62,10 +72,24 @@ license:
     - mit
     - private
 
+# Mostly default Nos below here vvv and usually just smash enter from here
+
+obsidian_project_add:
+  type: bool
+  default: no
+
+run_task_bootstrap:
+  type: bool
+  default: no
+
+run_task_install:
+  type: bool
+  default: no
+
 design_files:
   type: bool
   help: "Include design files folder (e.g. wireframe tools, architecture diagramming tools, etc.)?"
-  default: yes
+  default: no
 
 # Include a folder with code templates
 code_templates:
@@ -97,16 +121,6 @@ infra:
     - cloudflare_pages
   default: none
 
-# Include a folder with a CI/CD template
-ci_cd:
-  type: str
-  help: "CI/CD tool"
-  choices:
-    - github_actions
-    - none
-    - gitlab_ci
-  default: github_actions
-
 # TODO: Finish
 observability:
   type: str
@@ -135,18 +149,6 @@ data_folder:
 devcontainer:
   type: bool
   help: "Include .devcontainer folder?"
-  default: no
-
-obsidian_project_add:
-  type: bool
-  default: no
-
-run_task_bootstrap:
-  type: bool
-  default: no
-
-run_task_install:
-  type: bool
   default: no
 
 ai_tool:
@@ -215,7 +217,7 @@ docker_image:
 
 project_color: "TODO: random_color"
 
-# Paths
+# Paths TODO: How to not promput user for these?
 projects_directory: ~/git
 projects_directory_full: "/Users/{{ author_first_name }}/git"
 bunches_directory: "/Users/evan/Library/Mobile Documents/com~apple~CloudDocs/Bunches"
@@ -226,40 +228,40 @@ country: United States
 state: Kansas
 
 # Date & Time
-year: "TODO: year"
-datestamp: "TODO: datestamp"
-timestamp: "TODO: timestamp"
+# year: "TODO: year"
+# datestamp: "TODO: datestamp"
+# timestamp: "TODO: timestamp"
 
 # API Keys
-ai_tool_key:
-  when: false
-  secret: true
-  default: "TODO: ai_tool_key"
+# ai_tool_key:
+#   when: false
+#   secret: true
+#   default: "TODO: ai_tool_key"
 
-opanapi_key:
-  when: false
-  secret: true
-  default: "TODO: opanapi_key"
+# opanapi_key:
+#   when: false
+#   secret: true
+#   default: "TODO: opanapi_key"
 
-anthropic_key:
-  when: false
-  secret: true
-  default: "TODO: anthropic_key"
+# anthropic_key:
+#   when: false
+#   secret: true
+#   default: "TODO: anthropic_key"
 
-perplexity_key:
-  when: false
-  secret: true
-  default: "TODO: perplexity_key"
+# perplexity_key:
+#   when: false
+#   secret: true
+#   default: "TODO: perplexity_key"
 
-gemini_key:
-  when: false
-  secret: true
-  default: "TODO: gemini_key"
+# gemini_key:
+#   when: false
+#   secret: true
+#   default: "TODO: gemini_key"
 
-cursor_key:
-  when: false
-  secret: true
-  default: "TODO: cursor_key"
+# cursor_key:
+#   when: false
+#   secret: true
+#   default: "TODO: cursor_key"
 
 _tasks:
   - command: git init
@@ -269,8 +271,6 @@ _tasks:
   - command: mv .meta/'{{ project_name }}.md' {{ obsidian_directory }}/Professional/
     when: "{{ obsidian_project_add }}"
   - command: echo "Harmon Stack project creation complete."
-  - command: echo "PWD"
-  - command: pwd
 
 # Copier Settings
 
