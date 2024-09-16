@@ -1,6 +1,6 @@
 # questions for Copier new project template
 # This file controls the Copier new project utilty.
-# Run it with: `copier path/to/template/cp path/to/destination/repo-name` E.g, `copier harmon-stack .`.
+# Run it with: `copier path/to/template/cp path/to/destination/repo-name` E.g, `copier copy harmon-stack new-repo --trust`.
 
 # Potential types: astro, astrowind, nextjs, t3, wdc, sst, python, fastapi, flask, django, dashboard, control panel, go, terraform, pulumi, automattion / pipeline, ansible, kestra, datascience, java
 
@@ -13,12 +13,12 @@ project_name:
 
 project_slug:
   type: str
-  placeholder: "project-slug"
-  # "{{ project_name.lower().replace(' ', '-') }}"
+  placeholder: "{{ project_name.lower().replace(' ', '-') }}"
 
 project_description:
   type: str
   help: "Short description of the project"
+  placeholder: "TODO: project_description"
 
 project_type:
   type: str
@@ -28,9 +28,11 @@ project_type:
     - project
     - business
     - other
+  default: code
 
 git_init:
   type: bool
+  help: "Initialize git repo?"
   default: no
 
 git_provider:
@@ -39,19 +41,23 @@ git_provider:
     - github
     - gitlab
     - other
+    - none
+  default: github
 
 create_github_remote:
   type: bool
+  help: "Create a remote repo on GitHub? (gh repo create)"
   default: no
 
 include_github_contribution_templates:
   type: bool
-  help: "Include GitHub Issue templates and CONTRIBUTING.md file"
+  help: "Include GitHub Issue templates and CONTRIBUTING.md file?"
   default: yes
 
 cloud:
   type: str
   help: "Cloud provider for deployment"
+  multiline: true
   choices:
     - none
     - netlify
@@ -66,6 +72,7 @@ cloud:
     - cloudflare
     - github_pages
     - cloudflare_pages
+  default: none
 
 # Include a folder with an infrastructure as code template
 iac:
@@ -77,6 +84,7 @@ iac:
     - terraform
     - pulumi
     - cloudformation
+  default: none
 
 # Include a folder with a CI/CD template
 ci_cd:
@@ -86,6 +94,17 @@ ci_cd:
     - github_actions
     - none
     - gitlab_ci
+  default: github_actions
+
+observability:
+  type: str
+  help: "Observability tools"
+  multiline: true
+  choices:
+    - none
+    - uptime_kuma
+    - healthcheck
+  default: none
 
 # Include a folder with a configuration management template
 configuration_management:
@@ -94,6 +113,7 @@ configuration_management:
   choices:
     - none
     - ansible
+  default: none
 
 # Include a folder with automation template
 automation_tool:
@@ -104,17 +124,18 @@ automation_tool:
     - none
     - kestra
     - n8n
+  default: none
 
 # Include a folder with script templates
 script_templates:
   type: bool
-  help: "Script templates"
+  help: "Include script templates? (e.g. bash, python, go, etc.)"
   default: no
 
 # Include a folder with web templates
 web_templates:
   type: bool
-  help: "Web templates like html forms, etc."
+  help: "Include web templates like html forms, etc."
   default: no
 
 # Include a folder with serverless function templates
@@ -126,14 +147,17 @@ serverless_function_templates:
 ai_tool:
   type: str
   choices:
+    - none
     - openai
     - anthropic
     - perplexity
     - gemini
     - cursor
+  defult: none
 
 include_design_files:
   type: bool
+  help: "Include design files (e.g. wireframe tools, architecture diagramming tools, etc.)?"
   default: yes
 
 include_devcontainer:
@@ -258,7 +282,7 @@ cursor_key:
   default: "TODO: cursor_key"
 
 _tasks:
-  - command: echo "Starting project generation?"
+  - command: echo "After project generation?"
 
 # Copier Settings
 
