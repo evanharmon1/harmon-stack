@@ -1,10 +1,7 @@
 # questions for Copier new project template
-# This file controls the Copier new project utilty.
 # Run it with: `copier path/to/template/cp path/to/destination/repo-name` E.g, `copier copy harmon-stack new-repo --trust`.
 
 # Potential types: astro, astrowind, nextjs, t3, wdc, sst, python, fastapi, flask, django, dashboard, control panel, go, terraform, pulumi, automattion / pipeline, ansible, kestra, datascience, java
-
-# "_copy_without_render": ["*.html", "*.github", "*scriptTemplates"]
 
 project_name:
   type: str
@@ -14,11 +11,13 @@ project_name:
 project_slug:
   type: str
   placeholder: "{{ project_name.lower().replace(' ', '-') }}"
+  default: "{{ project_name.lower().replace(' ', '-') }}"
 
 project_description:
   type: str
   help: "Short description of the project"
   placeholder: "TODO: project_description"
+  default: "TODO: project_description"
 
 project_type:
   type: str
@@ -30,6 +29,7 @@ project_type:
     - other
   default: code
 
+# TODO: Add command
 git_init:
   type: bool
   help: "Initialize git repo?"
@@ -44,22 +44,27 @@ git_provider:
     - none
   default: github
 
+# TODO: Add command
 create_github_remote:
   type: bool
   help: "Create a remote repo on GitHub? (gh repo create)"
   default: no
 
-include_github_contribution_templates:
+github_contribution_templates:
   type: bool
   help: "Include GitHub Issue templates and CONTRIBUTING.md file?"
   default: yes
 
-cloud:
+infra:
   type: str
-  help: "Cloud provider for deployment"
-  multiline: true
+  help: "Infra: Infrastructure, hosting, cloud provider, deployment target, or IaC tool"
+  multiselect: true
   choices:
     - none
+    - docker
+    - terraform
+    - pulumi
+    - cloudformation
     - netlify
     - vercel
     - unraid
@@ -74,18 +79,6 @@ cloud:
     - cloudflare_pages
   default: none
 
-# Include a folder with an infrastructure as code template
-iac:
-  type: str
-  help: "Infrastructre as Code tool"
-  choices:
-    - none
-    - docker
-    - terraform
-    - pulumi
-    - cloudformation
-  default: none
-
 # Include a folder with a CI/CD template
 ci_cd:
   type: str
@@ -96,10 +89,11 @@ ci_cd:
     - gitlab_ci
   default: github_actions
 
+# TODO: Finish
 observability:
   type: str
   help: "Observability tools"
-  multiline: true
+  multiselect: true
   choices:
     - none
     - uptime_kuma
@@ -109,39 +103,31 @@ observability:
 # Include a folder with a configuration management template
 configuration_management:
   type: str
-  help: "configuration management tool"
+  help: "Configuration management tool"
   choices:
     - none
     - ansible
   default: none
 
-# Include a folder with automation template
-automation_tool:
-  type: str
-  help: "Automation tool"
-  multiline: true
-  choices:
-    - none
-    - kestra
-    - n8n
-  default: none
-
-# Include a folder with script templates
-script_templates:
+# Include a folder with code templates
+code_templates:
   type: bool
-  help: "Include script templates? (e.g. bash, python, go, etc.)"
+  help: "Include folder with code templates? (scripts, web forms, automation, serverless functions, etc.)"
   default: no
 
-# Include a folder with web templates
-web_templates:
+data_folder:
   type: bool
-  help: "Include web templates like html forms, etc."
+  help: "Include data folder?"
   default: no
 
-# Include a folder with serverless function templates
-serverless_function_templates:
+design_files:
   type: bool
-  help: "Serverless function templates"
+  help: "Include design files folder (e.g. wireframe tools, architecture diagramming tools, etc.)?"
+  default: yes
+
+devcontainer:
+  type: bool
+  help: "Include .devcontainer folder?"
   default: no
 
 ai_tool:
@@ -155,15 +141,6 @@ ai_tool:
     - cursor
   defult: none
 
-include_design_files:
-  type: bool
-  help: "Include design files (e.g. wireframe tools, architecture diagramming tools, etc.)?"
-  default: yes
-
-include_devcontainer:
-  type: bool
-  default: no
-
 author_first_name:
   type: str
   default: Evan
@@ -174,8 +151,8 @@ author_last_name:
 
 author_full_name:
   type: str
-  default: "Evan Harmon"
-  # "{{ author_first_name }} + {{ author_last name }}"
+  placeholder: "{{ author_first_name + ' ' + author_last_name }}"
+  default: "{{ author_first_name + ' ' + author_last_name }}"
 
 author_email:
   type: str
@@ -191,7 +168,7 @@ author_git_provider_username:
 
 organization:
   type: str
-  default: "TODO: organization"
+  default: "Harmon Ops"
 
 organization_url:
   type: str
