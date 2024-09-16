@@ -56,6 +56,23 @@ github_contribution_templates:
   help: "Include GitHub Issue templates and CONTRIBUTING.md file?"
   default: yes
 
+license:
+  type: str
+  choices:
+    - mit
+    - private
+
+design_files:
+  type: bool
+  help: "Include design files folder (e.g. wireframe tools, architecture diagramming tools, etc.)?"
+  default: yes
+
+# Include a folder with code templates
+code_templates:
+  type: bool
+  help: "Include folder with code templates? (scripts, web forms, automation, serverless functions, etc.)"
+  default: no
+
 infra:
   type: str
   help: "Infra: Infrastructure, hosting, cloud provider, deployment target, or IaC tool"
@@ -110,25 +127,26 @@ configuration_management:
     - ansible
   default: none
 
-# Include a folder with code templates
-code_templates:
-  type: bool
-  help: "Include folder with code templates? (scripts, web forms, automation, serverless functions, etc.)"
-  default: no
-
 data_folder:
   type: bool
   help: "Include data folder?"
   default: no
 
-design_files:
-  type: bool
-  help: "Include design files folder (e.g. wireframe tools, architecture diagramming tools, etc.)?"
-  default: yes
-
 devcontainer:
   type: bool
   help: "Include .devcontainer folder?"
+  default: no
+
+obsidian_project_add:
+  type: bool
+  default: no
+
+run_task_bootstrap:
+  type: bool
+  default: no
+
+run_task_install:
+  type: bool
   default: no
 
 ai_tool:
@@ -186,24 +204,6 @@ repo_url:
 project_url:
   type: str
   default: "TODO: project_url"
-
-license:
-  type: str
-  choices:
-    - mit
-    - private
-
-obsidian_project_add:
-  type: bool
-  default: no
-
-run_task_bootstrap:
-  type: bool
-  default: no
-
-run_task_install:
-  type: bool
-  default: no
 
 docker_hub_username:
   type: str
@@ -266,9 +266,11 @@ _tasks:
     when: "{{ git_init }}"
   - command: gh repo create
     when: "{{ github_remote_create }}"
-  - command: mv .meta/obsidianProject.md {{ obsidian_directory }}/Professional/{{ project_name }}.md
+  - command: mv .meta/'{{ project_name }}.md' {{ obsidian_directory }}/Professional/
     when: "{{ obsidian_project_add }}"
   - command: echo "Harmon Stack project creation complete."
+  - command: echo "PWD"
+  - command: pwd
 
 # Copier Settings
 
