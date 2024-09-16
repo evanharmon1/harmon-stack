@@ -3,6 +3,8 @@
 
 # Potential types: astro, astrowind, nextjs, t3, wdc, sst, python, fastapi, flask, django, dashboard, control panel, go, terraform, pulumi, automattion / pipeline, ansible, kestra, datascience, java
 
+# TODO: Change method to create files that I want gitignored - .env folder, .meta folder etc. Probably due as a post task.
+
 project_name:
   type: str
   help: "Formal name of the project (Project Name)"
@@ -29,7 +31,6 @@ project_type:
     - other
   default: code
 
-# TODO: Add command
 git_init:
   type: bool
   help: "Initialize git repo?"
@@ -44,12 +45,12 @@ git_provider:
     - none
   default: github
 
-# TODO: Add command
-create_github_remote:
+github_remote_create:
   type: bool
   help: "Create a remote repo on GitHub? (gh repo create)"
   default: no
 
+# TODO: Code of conduct, project?, wiki?, discussion?
 github_contribution_templates:
   type: bool
   help: "Include GitHub Issue templates and CONTRIBUTING.md file?"
@@ -192,7 +193,7 @@ license:
     - mit
     - private
 
-add_obsidian_project:
+obsidian_project_add:
   type: bool
   default: no
 
@@ -218,6 +219,7 @@ project_color: "TODO: random_color"
 projects_directory: ~/git
 projects_directory_full: "/Users/{{ author_first_name }}/git"
 bunches_directory: "/Users/evan/Library/Mobile Documents/com~apple~CloudDocs/Bunches"
+obsidian_directory: "/Users/evan/Local/Memex"
 
 # Demographics
 country: United States
@@ -260,7 +262,13 @@ cursor_key:
   default: "TODO: cursor_key"
 
 _tasks:
-  - command: echo "After project generation?"
+  - command: git init
+    when: "{{ git_init }}"
+  - command: gh repo create
+    when: "{{ github_remote_create }}"
+  - command: mv .meta/obsidianProject.md {{ obsidian_directory }}/Professional/{{ project_name }}.md
+    when: "{{ obsidian_project_add }}"
+  - command: echo "Harmon Stack project creation complete."
 
 # Copier Settings
 

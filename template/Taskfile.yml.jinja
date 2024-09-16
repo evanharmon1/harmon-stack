@@ -37,6 +37,7 @@ tasks:
   gitInitRelease: 
     cmds:
       - git init
-      - git tag -a v0.0.1 -m "Initial release version 0.0.1"
-      - gh relase create
+      - git tag -a v0.0.1 -m "Initial release v0.0.1"
+      - git push origin --tags
+      - gh release create
     silent: false
