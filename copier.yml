@@ -217,6 +217,7 @@ project_color: "TODO: random_color"
 # Paths
 projects_directory: ~/git
 projects_directory_full: "/Users/{{ author_first_name }}/git"
+bunches_directory: "/Users/evan/Library/Mobile Documents/com~apple~CloudDocs/Bunches"
 
 # Demographics
 country: United States

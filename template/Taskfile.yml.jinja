@@ -29,3 +29,14 @@ tasks:
     cmds:
       - snyk test --file=osConfig/languages/python/requirements.txt #TODO: Fix path - make relative to project
     silent: true
+  bunchInstall
+    cmds:
+      - mv '.meta/Code Project - {{ project_name }}.bunch' {{ bunches_directory }}
+      - ln -s {{ bunches_directory }}/'Code Project - {{ project_name }}.bunch' .meta
+    silent: false
+  gitInitRelease: 
+    cmds:
+      - git init
+      - git tag -a v0.0.1 -m "Initial release version 0.0.1"
+      - gh relase create
+    silent: false
