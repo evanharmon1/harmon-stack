@@ -50,6 +50,12 @@ github_remote_create:
   help: "Create a remote repo on GitHub? (gh repo create)"
   default: no
 
+# TODO
+github_release_init:
+  type: bool
+  help: "Create an initial pre-release on GitHub?"
+  default: no
+
 # TODO: Code of conduct, project?, wiki?, discussion?
 github_contribution_templates:
   type: bool
