@@ -275,7 +275,6 @@ state: Kansas
 #   secret: true
 #   default: "TODO: cursor_key"
 
-# TODO: Add symoblic link back to project - obisidian and bunch_add
 _tasks:
   - command: git init
     when: "{{ git_init }}"
@@ -286,8 +285,10 @@ _tasks:
       - "git commit -m 'Initial Release'"
       - "task gitInitRelease"
     when: "{{ github_release_init }}"
-  - command: mv .meta/'{{ project_name }}.md' {{ obsidian_directory }}/Professional/
+  - command: task obsidianProjectAdd
     when: "{{ obsidian_project_add }}"
+  - command: task bunchAdd
+    when: "{{ bunch_add }}"
   - command: echo "Harmon Stack project creation complete."
 
 # Copier Settings
