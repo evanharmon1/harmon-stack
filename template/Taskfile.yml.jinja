@@ -34,10 +34,72 @@ tasks:
       - mv '.meta/Code Project - {{ project_name }}.bunch' {{ bunches_directory }}
       - ln -s {{ bunches_directory }}/'Code Project - {{ project_name }}.bunch' .meta
     silent: false
+  obsidianSetup
+    cmds:
+      - echo "TODO:"
+    silent: false
   gitInitRelease: 
     cmds:
-      - git init
       - git tag -a v0.0.1 -m "Initial release v0.0.1"
-      - git push origin --tags
       - gh release create
     silent: false
+  versionBumpPatch:
+    desc: Bump to the next patch version
+    vars:
+      LATEST_TAG:
+        sh: git tag --sort=-version:refname | head -n1
+      VERSION:
+        sh: echo "{{.LATEST_TAG}}" | sed 's/^v//'
+      MAJOR:
+        sh: echo "{{.VERSION}}" | cut -d. -f1
+      MINOR:
+        sh: echo "{{.VERSION}}" | cut -d. -f2
+      PATCH:
+        sh: echo "{{.VERSION}}" | cut -d. -f3
+      NEW_PATCH:
+        sh: expr {{.PATCH}} + 1
+      NEW_VERSION: v{{.MAJOR}}.{{.MINOR}}.{{.NEW_PATCH}}
+    cmds:
+      - echo "Latest tag is {{.LATEST_TAG}}"
+      - echo "Current version is {{.VERSION}}"
+      - echo "Bumping patch version to {{.NEW_VERSION}}"
+      - git tag {{.NEW_VERSION}}
+      - git push origin {{.NEW_VERSION}}
+  versionBumpMinor:
+    desc: Bump to the next minor version
+    vars:
+      LATEST_TAG:
+        sh: git tag --sort=-version:refname | head -n1
+      VERSION:
+        sh: echo "{{.LATEST_TAG}}" | sed 's/^v//'
+      MAJOR:
+        sh: echo "{{.VERSION}}" | cut -d. -f1
+      MINOR:
+        sh: echo "{{.VERSION}}" | cut -d. -f2
+      NEW_MINOR:
+        sh: expr {{.MINOR}} + 1
+      NEW_VERSION: v{{.MAJOR}}.{{.NEW_MINOR}}.0
+    cmds:
+      - echo "Latest tag is {{.LATEST_TAG}}"
+      - echo "Current version is {{.VERSION}}"
+      - echo "Bumping minor version to {{.NEW_VERSION}}"
+      - git tag {{.NEW_VERSION}}
+      - git push origin {{.NEW_VERSION}}
+  versionBumpMajor:
+    desc: Bump to the next major version
+    vars:
+      LATEST_TAG:
+        sh: git tag --sort=-version:refname | head -n1
+      VERSION:
+        sh: echo "{{.LATEST_TAG}}" | sed 's/^v//'
+      MAJOR:
+        sh: echo "{{.VERSION}}" | cut -d. -f1
+      NEW_MAJOR:
+        sh: expr {{.MAJOR}} + 1
+      NEW_VERSION: v{{.NEW_MAJOR}}.0.0
+    cmds:
+      - echo "Latest tag is {{.LATEST_TAG}}"
+      - echo "Current version is {{.VERSION}}"
+      - echo "Bumping major version to {{.NEW_VERSION}}"
+      - git tag {{.NEW_VERSION}}
+      - git push origin {{.NEW_VERSION}}

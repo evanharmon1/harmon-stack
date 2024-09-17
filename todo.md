@@ -17,3 +17,4 @@ Inbox:
 	- datestamp, timestamp, year @na
 	- postrun script - git init @na
 	- prerun script - random color for vs code workspace @na
+	- editorconfig standard file thing @na

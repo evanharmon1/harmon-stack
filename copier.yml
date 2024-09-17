@@ -1,43 +1,44 @@
 # questions for Copier new project template
-# Run it with: `copier path/to/template/cp path/to/destination/repo-name` E.g, `copier copy harmon-stack new-repo --trust`.
+# Run it with: `copier copy path/to/repo path/to/destination/repo-name` E.g, `copier copy harmon-stack new-repo --trust`.
 
 # Potential types: astro, astrowind, nextjs, t3, wdc, sst, python, fastapi, flask, django, dashboard, control panel, go, terraform, pulumi, automattion / pipeline, ansible, kestra, datascience, java
 
-# TODO: Change method to create files that I want gitignored - .env folder, .meta folder etc. Probably due as a post task.
-
 project_name:
   type: str
-  help: "Formal name of the project (Project Name)"
+  help: "NAME: Formal name of the project (Project Name)"
   placeholder: "Formal Project Name"
 
 project_slug:
   type: str
+  help: "SLUG: Project slug (project-slug)"
   placeholder: "{{ project_name.lower().replace(' ', '-') }}"
   default: "{{ project_name.lower().replace(' ', '-') }}"
 
 project_description:
   type: str
-  help: "Short description of the project"
+  help: "DESCRIPTION: Short description of the project"
   placeholder: "TODO: project_description"
   default: "TODO: project_description"
 
 project_type:
   type: str
-  help: "Type of project"
+  help: "TYPE: Type of project?"
   choices:
     - code
     - project
     - business
+    - documentation
     - other
   default: code
 
 git_init:
   type: bool
-  help: "Initialize git repo?"
+  help: "INIT: Initialize git repo?"
   default: yes
 
 git_provider:
   type: str
+  help: "GIT PROVIDER: Git provider for the project"
   choices:
     - github
     - gitlab
@@ -47,25 +48,22 @@ git_provider:
 
 github_remote_create:
   type: bool
-  help: "Create a remote repo on GitHub? (gh repo create)"
+  help: "GITHUB REMOTE: Create a remote repo on GitHub? (gh repo create)"
   default: no
 
-# TODO
 github_release_init:
   type: bool
-  help: "Create an initial pre-release on GitHub?"
+  help: "RELEASE: Create an initial release on GitHub?"
   default: no
 
-# TODO: Code of conduct, project?, wiki?, discussion?
-github_contribution_templates:
+github_collaboration_templates:
   type: bool
-  help: "Include GitHub Issue templates and CONTRIBUTING.md file?"
+  help: "COLLABORATION: Include GitHub Issue templates, CONTRIBUTING.md, and CODE_OF_CONDUCT.md files?"
   default: no
 
-# Include a folder with a CI/CD template
 ci_cd:
   type: str
-  help: "CI/CD tool"
+  help: "CI/CD: Add CI/CD files?"
   choices:
     - github_actions
     - none
@@ -74,39 +72,47 @@ ci_cd:
 
 license:
   type: str
+  help: "LICENSE: Add license?"
   choices:
     - mit
     - private
   default: mit
 
-# Mostly default Nos below here vvv and usually just smash enter from here
+bunch_add:
+  type: bool
+  help: "BUNCH: Add Bunch file to project?"
+  default: yes
+
+# Mostly default good defaults (Most Nos) below here vvv so usually just smash enter from here
 
 obsidian_project_add:
   type: bool
+  help: "OBSIDIAN: Add Obsidian project to Obsidian directory?"
   default: no
 
 run_task_bootstrap:
   type: bool
+  help: "TASK BOOTSTRAP: Run 'task bootstrap' command?"
   default: no
 
 run_task_install:
   type: bool
+  help: "TASK INSTALL: Run 'task install' command?"
   default: no
 
 design_files:
   type: bool
-  help: "Include design files folder (e.g. wireframe tools, architecture diagramming tools, etc.)?"
+  help: "DESIGN: Add design files (e.g. wireframe tools, architecture diagramming tools, etc.)?"
   default: no
 
-# Include a folder with code templates
 code_templates:
   type: bool
-  help: "Include folder with code templates? (scripts, web forms, automation, serverless functions, etc.)"
+  help: "CODE TEMPLATES: Add code templates? (scripts, web forms, automation, serverless functions, etc.)?"
   default: no
 
 infra:
   type: str
-  help: "Infra: Infrastructure, hosting, cloud provider, deployment target, or IaC tool"
+  help: "INFRA: Add Infrastructure, hosting, cloud provider, deployment target, or IaC tools?"
   multiselect: true
   choices:
     - none
@@ -128,10 +134,9 @@ infra:
     - cloudflare_pages
   default: none
 
-# TODO: Finish
 observability:
   type: str
-  help: "Observability tools"
+  help: "OBSERVABILITY: Add observability tools"
   multiselect: true
   choices:
     - none
@@ -139,10 +144,9 @@ observability:
     - healthcheck
   default: none
 
-# Include a folder with a configuration management template
 configuration_management:
   type: str
-  help: "Configuration management tool"
+  help: "CONFIGURATION MANAGEMENT: Add Configuration management tool"
   choices:
     - none
     - ansible
@@ -150,12 +154,12 @@ configuration_management:
 
 data_folder:
   type: bool
-  help: "Include data folder?"
+  help: "DATA: Add data folder?"
   default: no
 
 devcontainer:
   type: bool
-  help: "Include .devcontainer folder?"
+  help: ".DEVCONTAINER: Add .devcontainer?"
   default: no
 
 ai_tool:
@@ -200,11 +204,11 @@ organization:
 
 organization_url:
   type: str
-  default: "TODO: organization_url"
+  default: "https://harmonops.com"
 
 organization_email:
   type: str
-  default: "info@{{ organization_url }}"
+  default: "evan@evanharmon.com"
 
 repo_url:
   type: str
@@ -222,6 +226,7 @@ docker_image:
   type: str
   default: "TODO: docker_image"
 
+# TODO: generate random color
 project_color: "TODO: random_color"
 
 # Paths TODO: How to not promput user for these?
@@ -270,11 +275,17 @@ state: Kansas
 #   secret: true
 #   default: "TODO: cursor_key"
 
+# TODO: Add symoblic link back to project - obisidian and bunch_add
 _tasks:
   - command: git init
     when: "{{ git_init }}"
   - command: gh repo create
     when: "{{ github_remote_create }}"
+  - commands:
+      - "git add -A"
+      - "git commit -m 'Initial Release'"
+      - "task gitInitRelease"
+    when: "{{ github_release_init }}"
   - command: mv .meta/'{{ project_name }}.md' {{ obsidian_directory }}/Professional/
     when: "{{ obsidian_project_add }}"
   - command: echo "Harmon Stack project creation complete."
