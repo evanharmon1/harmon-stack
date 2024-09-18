@@ -31,10 +31,23 @@ project_type:
     - other
   default: code
 
-git_init:
+bunch_add:
   type: bool
-  help: "INIT: Initialize git repo?"
+  help: "BUNCH: Add Bunch file to project?"
   default: yes
+
+obsidian_project_add:
+  type: bool
+  help: "OBSIDIAN: Add Obsidian project to Obsidian directory?"
+  default: no
+
+license:
+  type: str
+  help: "LICENSE: Add license?"
+  choices:
+    - mit
+    - private
+  default: mit
 
 git_provider:
   type: str
@@ -46,14 +59,19 @@ git_provider:
     - none
   default: github
 
+git_init:
+  type: bool
+  help: "INIT: Initialize git repo?"
+  default: yes
+
 github_remote_create:
   type: bool
-  help: "GITHUB REMOTE: Create a remote repo on GitHub? (gh repo create)"
+  help: "GITHUB REMOTE: Create a remote repo on GitHub (gh repo create)? If yes, choose to create repo from local."
   default: no
 
 github_release_init:
   type: bool
-  help: "RELEASE: Create an initial release on GitHub?"
+  help: "RELEASE: Create an initial release on GitHub (git tag v0.0.1 & gh release create)?"
   default: no
 
 github_collaboration_templates:
@@ -70,25 +88,7 @@ ci_cd:
     - gitlab_ci
   default: github_actions
 
-license:
-  type: str
-  help: "LICENSE: Add license?"
-  choices:
-    - mit
-    - private
-  default: mit
-
-bunch_add:
-  type: bool
-  help: "BUNCH: Add Bunch file to project?"
-  default: yes
-
 # Mostly default good defaults (Most Nos) below here vvv so usually just smash enter from here
-
-obsidian_project_add:
-  type: bool
-  help: "OBSIDIAN: Add Obsidian project to Obsidian directory?"
-  default: no
 
 run_task_bootstrap:
   type: bool
@@ -240,6 +240,19 @@ country: United States
 state: Kansas
 
 # Date & Time
+current_date:
+  type: str
+  default: "{{ '%Y-%m-%d' | strftime }}"
+
+current_year:
+  type: str
+  default: "{{ '%Y' | strftime }}"
+
+current_time:
+  type: str
+  default: "{{ '%H:%M:%S' | strftime }}"
+
+# Date & Time
 # year: "TODO: year"
 # datestamp: "TODO: datestamp"
 # timestamp: "TODO: timestamp"
@@ -276,15 +289,13 @@ state: Kansas
 #   default: "TODO: cursor_key"
 
 _tasks:
+  - command: echo "******************** STARTING TASKS SECTION ***********************"
   - command: git init
     when: "{{ git_init }}"
   - command: gh repo create
     when: "{{ github_remote_create }}"
-  # - commands:
-  #     - "git add -A"
-  #     - "git commit -m 'Initial Release'"
-  #     - "task gitInitRelease"
-  #   when: "{{ github_release_init }}"
+  - command: task githubReleaseInit
+    when: "{{ github_release_init }}"
   - command: task bunchAdd
     when: "{{ bunch_add }}"
   - command: task obsidianProjectAdd

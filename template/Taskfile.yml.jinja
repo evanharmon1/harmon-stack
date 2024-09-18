@@ -31,17 +31,20 @@ tasks:
     silent: true
   githubReleaseInit: 
     cmds:
+      - git add .
+      - git commit -m 'Initial release v0.0.1'
       - git tag -a v0.0.1 -m "Initial release v0.0.1"
+      - git push origin --tags
       - gh release create
     silent: false
   bunchAdd:
     cmds:
-      - mv '.meta/Code Project - {{ project_name }}.bunch' {{ bunches_directory }}
-      - ln -s {{ bunches_directory }}/'Code Project - {{ project_name }}.bunch' .meta
+      - ls -lah .meta
+      - mv '.meta/Code Project - {{ project_name }}.bunch' '{{ bunches_directory }}/'
+      - ln -s '{{ bunches_directory }}/Code Project - {{ project_name }}.bunch' .meta
     silent: false
   obsidianProjectAdd:
     cmds:
-      - mv '{{ project_name }}.md' {{ obsidian_directory }}/Professional/
-      - ln -s {{ obsidian_directory }}/Professional/'{{ project_name }}.md' .meta
+      - mv '.meta/{{ project_name }}.md' '{{ obsidian_directory }}/Professional/'
+      - ln -s '{{ obsidian_directory }}/Professional/{{ project_name }}.md' .meta
     silent: false
-  
