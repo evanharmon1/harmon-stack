@@ -228,12 +228,6 @@ docker_image:
   default: "TODO: docker_image"
   when: false
 
-# TODO: generate random color
-project_color:
-  type: str
-  default: "TODO: random_color"
-  when: false
-
 # Paths
 projects_directory:
   type: str

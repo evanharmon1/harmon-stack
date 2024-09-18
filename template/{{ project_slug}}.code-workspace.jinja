@@ -1,4 +1,4 @@
-{
+{% set r = range(256) | random %}{% set g = range(256) | random %}{% set b = range(256) | random %}{% set random_color = '#' + '%02X%02X%02X' % (r, g, b) %}{
 	"folders": [
 		{
 			"path": "."
@@ -25,7 +25,7 @@
 			"titleBar.inactiveForeground": "#e7e7e799",
 			"commandCenter.border": "#e7e7e799"
 		},
-		"peacock.color": "#FF0000",
+		"peacock.color": "{{ random_color }}",
 		"shiftleft-core.slHomePath": "/Users/evan/.shiftleft"
 	}
 }

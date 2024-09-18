@@ -70,6 +70,7 @@ tasks:
       - echo "Bumping patch version to {{.NEW_VERSION}}"
       - git tag {{.NEW_VERSION}}
       - git push origin {{.NEW_VERSION}}
+      - gh release create
   vBumpMinor:
     desc: Bump to the next minor version
     vars:
@@ -90,6 +91,7 @@ tasks:
       - echo "Bumping minor version to {{.NEW_VERSION}}"
       - git tag {{.NEW_VERSION}}
       - git push origin {{.NEW_VERSION}}
+      - gh release create
   vBumpMajor:
     desc: Bump to the next major version
     vars:
@@ -108,3 +110,4 @@ tasks:
       - echo "Bumping major version to {{.NEW_VERSION}}"
       - git tag {{.NEW_VERSION}}
       - git push origin {{.NEW_VERSION}}{% endraw %}
+      - gh release create
