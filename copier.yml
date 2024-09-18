@@ -58,6 +58,7 @@ git_provider:
     - other
     - none
   default: github
+  when: false
 
 git_init:
   type: bool
@@ -165,83 +166,123 @@ devcontainer:
 author_first_name:
   type: str
   default: Evan
+  when: false
 
 author_last_name:
   type: str
   default: Harmon
+  when: false
 
-_author_full_name:
+author_full_name:
   type: str
   placeholder: "{{ author_first_name + ' ' + author_last_name }}"
   default: "{{ author_first_name + ' ' + author_last_name }}"
+  when: false
 
 author_email:
   type: str
   default: "evan@evanharmon.com"
+  when: false
 
 author_url:
   type: str
   default: "https://evanharmon.com"
+  when: false
 
 author_git_provider_username:
   type: str
   default: evanharmon1
+  when: false
 
 project_url:
   type: str
   default: "TODO: project_url"
 
-_repo_url:
+repo_url:
   type: str
   default: "https://{{ git_provider }}.com/{{ author_git_provider_username }}/{{ project_slug }}"
+  when: false
 
 organization:
   type: str
   default: "Harmon Ops"
+  when: false
 
 organization_url:
   type: str
   default: "https://harmonops.com"
+  when: false
 
 organization_email:
   type: str
   default: "evan@evanharmon.com"
+  when: false
 
 docker_hub_username:
   type: str
   default: evanharmon1
+  when: false
 
-_docker_image:
+docker_image:
   type: str
   default: "TODO: docker_image"
+  when: false
 
 # TODO: generate random color
-_project_color: "TODO: random_color"
+project_color:
+  type: str
+  default: "TODO: random_color"
+  when: false
 
 # Paths
-_projects_directory: ~/git
-_projects_directory_full: "/Users/{{ author_first_name }}/git"
-_bunches_directory: "/Users/evan/Library/Mobile Documents/com~apple~CloudDocs/Bunches"
-_obsidian_directory: "/Users/evan/Local/Memex"
+projects_directory:
+  type: str
+  default: ~/git
+  when: false
+
+projects_directory_full:
+  type: str
+  default: "/Users/{{ author_first_name }}/git"
+  when: false
+
+bunches_directory:
+  type: str
+  default: "/Users/evan/Library/Mobile Documents/com~apple~CloudDocs/Bunches"
+  when: false
+
+obsidian_directory:
+  type: str
+  default: "/Users/evan/Local/Memex"
+  when: false
 
 # Demographics
-_country: United States
-_state: Kansas
+country:
+  type: str
+  default: United States
+  when: false
+
+state:
+  type: str
+  default: Kansas
+  when: false
 
 # Date & Time
-_current_date:
+current_date:
   type: str
   default: "{{ '%Y-%m-%d' | strftime }}"
+  when: false
 
-_current_year:
+current_year:
   type: str
   default: "{{ '%Y' | strftime }}"
+  when: false
 
-_current_time:
+current_time:
   type: str
   default: "{{ '%H:%M:%S' | strftime }}"
+  when: false
 
-_ai_tool:
+ai_tool:
   type: str
   choices:
     - none
@@ -251,6 +292,7 @@ _ai_tool:
     - gemini
     - cursor
   defult: none
+  when: false
 
 # API Keys
 # _ai_tool_key:
@@ -287,6 +329,8 @@ _tasks:
   - command: echo "*******************************************************************"
   - command: echo "******************** STARTING TASKS SECTION ***********************"
   - command: echo "*******************************************************************"
+  - command: "echo '_bunches_directory is set to: {{ _bunches_directory }}'"
+  - command: "echo '_obsidian_directory is set to: {{ _obsidian_directory }}'"
   - command: git init
     when: "{{ git_init }}"
   - command: gh repo create
