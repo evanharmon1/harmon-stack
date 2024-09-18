@@ -28,7 +28,7 @@ tasks:
     cmds:
       - snyk test --file=osConfig/languages/python/requirements.txt #TODO: Fix path - make relative to project
     silent: true
-  githubReleaseInit:
+  ghReleaseInit:
     cmds:
       - git add -A
       - git commit -m 'Initial release v0.0.1'
@@ -40,12 +40,12 @@ tasks:
       - cp '.meta/Code Project - Harmon Stack.bunch' .
       - ln -s 'Code Project - Harmon Stack.bunch' '.env/Code Project - Harmon Stack.bunch'
     silent: false
-  obsidianProjectAdd:
+  obsidianAdd:
     cmds:
       - mv '{{ project_name }}.md' {{ obsidian_directory }}/Professional/
       - ln -s {{ obsidian_directory }}/Professional/'{{ project_name }}.md' .meta
     silent: false
-  versionBumpPatch:
+  vBumpPatch:
     desc: Bump to the next patch version
     vars:
       LATEST_TAG:
@@ -67,7 +67,7 @@ tasks:
       - echo "Bumping patch version to {{.NEW_VERSION}}"
       - git tag {{.NEW_VERSION}}
       - git push origin {{.NEW_VERSION}}
-  versionBumpMinor:
+  vBumpMinor:
     desc: Bump to the next minor version
     vars:
       LATEST_TAG:
@@ -87,7 +87,7 @@ tasks:
       - echo "Bumping minor version to {{.NEW_VERSION}}"
       - git tag {{.NEW_VERSION}}
       - git push origin {{.NEW_VERSION}}
-  versionBumpMajor:
+  vBumpMajor:
     desc: Bump to the next major version
     vars:
       LATEST_TAG:

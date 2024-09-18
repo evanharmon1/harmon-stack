@@ -162,17 +162,6 @@ devcontainer:
   help: ".DEVCONTAINER: Add .devcontainer?"
   default: no
 
-ai_tool:
-  type: str
-  choices:
-    - none
-    - openai
-    - anthropic
-    - perplexity
-    - gemini
-    - cursor
-  defult: none
-
 author_first_name:
   type: str
   default: Evan
@@ -181,7 +170,7 @@ author_last_name:
   type: str
   default: Harmon
 
-author_full_name:
+_author_full_name:
   type: str
   placeholder: "{{ author_first_name + ' ' + author_last_name }}"
   default: "{{ author_first_name + ' ' + author_last_name }}"
@@ -198,6 +187,14 @@ author_git_provider_username:
   type: str
   default: evanharmon1
 
+project_url:
+  type: str
+  default: "TODO: project_url"
+
+_repo_url:
+  type: str
+  default: "https://{{ git_provider }}.com/{{ author_git_provider_username }}/{{ project_slug }}"
+
 organization:
   type: str
   default: "Harmon Ops"
@@ -210,97 +207,99 @@ organization_email:
   type: str
   default: "evan@evanharmon.com"
 
-repo_url:
-  type: str
-  default: "https://{{ git_provider }}.com/{{ author_git_provider_username }}/{{ project_slug }}"
-
-project_url:
-  type: str
-  default: "TODO: project_url"
-
 docker_hub_username:
   type: str
   default: evanharmon1
 
-docker_image:
+_docker_image:
   type: str
   default: "TODO: docker_image"
 
 # TODO: generate random color
-project_color: "TODO: random_color"
+_project_color: "TODO: random_color"
 
-# Paths TODO: How to not promput user for these?
-projects_directory: ~/git
-projects_directory_full: "/Users/{{ author_first_name }}/git"
-bunches_directory: "/Users/evan/Library/Mobile Documents/com~apple~CloudDocs/Bunches"
-obsidian_directory: "/Users/evan/Local/Memex"
+# Paths
+_projects_directory: ~/git
+_projects_directory_full: "/Users/{{ author_first_name }}/git"
+_bunches_directory: "/Users/evan/Library/Mobile Documents/com~apple~CloudDocs/Bunches"
+_obsidian_directory: "/Users/evan/Local/Memex"
 
 # Demographics
-country: United States
-state: Kansas
+_country: United States
+_state: Kansas
 
 # Date & Time
-current_date:
+_current_date:
   type: str
   default: "{{ '%Y-%m-%d' | strftime }}"
 
-current_year:
+_current_year:
   type: str
   default: "{{ '%Y' | strftime }}"
 
-current_time:
+_current_time:
   type: str
   default: "{{ '%H:%M:%S' | strftime }}"
 
-# Date & Time
-# year: "TODO: year"
-# datestamp: "TODO: datestamp"
-# timestamp: "TODO: timestamp"
+_ai_tool:
+  type: str
+  choices:
+    - none
+    - openai
+    - anthropic
+    - perplexity
+    - gemini
+    - cursor
+  defult: none
 
 # API Keys
-# ai_tool_key:
+# _ai_tool_key:
 #   when: false
 #   secret: true
 #   default: "TODO: ai_tool_key"
 
-# opanapi_key:
+# _opanapi_key:
 #   when: false
 #   secret: true
 #   default: "TODO: opanapi_key"
 
-# anthropic_key:
+# _anthropic_key:
 #   when: false
 #   secret: true
 #   default: "TODO: anthropic_key"
 
-# perplexity_key:
+# _perplexity_key:
 #   when: false
 #   secret: true
 #   default: "TODO: perplexity_key"
 
-# gemini_key:
+# _gemini_key:
 #   when: false
 #   secret: true
 #   default: "TODO: gemini_key"
 
-# cursor_key:
+# _cursor_key:
 #   when: false
 #   secret: true
 #   default: "TODO: cursor_key"
 
 _tasks:
+  - command: echo "*******************************************************************"
   - command: echo "******************** STARTING TASKS SECTION ***********************"
+  - command: echo "*******************************************************************"
   - command: git init
     when: "{{ git_init }}"
   - command: gh repo create
     when: "{{ github_remote_create }}"
-  - command: task githubReleaseInit
+  - command: task ghReleaseInit
     when: "{{ github_release_init }}"
   - command: task bunchAdd
     when: "{{ bunch_add }}"
-  - command: task obsidianProjectAdd
+  - command: task obsidianAdd
     when: "{{ obsidian_project_add }}"
-  - command: echo "Harmon Stack project creation complete."
+  - command: echo "==================================================================="
+  - command: echo "============== HARMON STACK PROJECT CREATION COMPLETE ============="
+  - command: echo "==================================================================="
 
 # Copier Settings
 
