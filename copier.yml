@@ -280,15 +280,15 @@ _tasks:
     when: "{{ git_init }}"
   - command: gh repo create
     when: "{{ github_remote_create }}"
-  - commands:
-      - "git add -A"
-      - "git commit -m 'Initial Release'"
-      - "task gitInitRelease"
-    when: "{{ github_release_init }}"
-  - command: task obsidianProjectAdd
-    when: "{{ obsidian_project_add }}"
+  # - commands:
+  #     - "git add -A"
+  #     - "git commit -m 'Initial Release'"
+  #     - "task gitInitRelease"
+  #   when: "{{ github_release_init }}"
   - command: task bunchAdd
     when: "{{ bunch_add }}"
+  - command: task obsidianProjectAdd
+    when: "{{ obsidian_project_add }}"
   - command: echo "Harmon Stack project creation complete."
 
 # Copier Settings
