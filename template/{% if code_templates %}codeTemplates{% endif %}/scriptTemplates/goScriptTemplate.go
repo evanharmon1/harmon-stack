@@ -3,7 +3,7 @@
 //	                    goScriptTemplate.go
 //
 // =============================================================================
-// Template to create new python cli scripts.
+// Template to create new go cli app
 // Author: Evan Harmon
 // Usage: go run main.go --input input.txt --output output.txt --verbose
 // Build: go build -o cliapp
