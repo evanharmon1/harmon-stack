@@ -1,5 +1,5 @@
 # Connect to local dev db with `psql -h 127.0.0.1 -p 5432 -U postgres`
-version: '3.7'
+version: "3.7"
 services:
   database:
     container_name: db

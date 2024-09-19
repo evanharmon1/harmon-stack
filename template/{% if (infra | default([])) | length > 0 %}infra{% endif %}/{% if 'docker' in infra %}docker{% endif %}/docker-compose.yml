@@ -1,11 +1,11 @@
-version: '3'
+version: "3"
 services:
   ubuntu:
     image: ubuntu:latest
     ports:
-      - '9998:9998'
+      - "9998:9998"
     tty: true
-    command: 'bash'
+    command: "bash"
     working_dir: /dockerVol
     volumes:
       - "./dockerVol:/dockerVol"
@@ -22,7 +22,7 @@ services:
   nginx:
     image: nginx:stable-alpine
     ports:
-      - '9999:9999'
+      - "9999:9999"
     tty: true
     working_dir: /dockerVol
     volumes:
@@ -62,7 +62,6 @@ services:
 #       - "./dockerVol:/dockerVol"
 volumes:
   dockerVol:
-
 # Jenkins
 # Ansible
 # Puppet

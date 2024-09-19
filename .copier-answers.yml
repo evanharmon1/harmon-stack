@@ -16,10 +16,10 @@ infra: []
 license: private
 observability: []
 obsidian_project_add: false
-project_description: 'TODO: project_description'
+project_description: "TODO: project_description"
 project_name: Harmon Stack
 project_slug: harmon-stack
 project_type: code
-project_url: 'TODO: project_url'
+project_url: "TODO: project_url"
 run_task_bootstrap: false
 run_task_install: false

@@ -1,13 +1,14 @@
 import json
 
+
 def lambda_handler(event, context):
     try:
         # Parse the input from the event (assumed to be passed as JSON)
-        body = json.loads(event.get('body', '{}'))
+        body = json.loads(event.get("body", "{}"))
 
         # Extract two numbers from the input
-        num1 = body.get('num1')
-        num2 = body.get('num2')
+        num1 = body.get("num1")
+        num2 = body.get("num2")
 
         # Validate input
         if num1 is None or num2 is None:
@@ -22,28 +23,19 @@ def lambda_handler(event, context):
 
         # Return the result
         return {
-            'statusCode': 200,
-            'body': json.dumps({
-                'message': 'Calculation successful',
-                'result': result
-            })
+            "statusCode": 200,
+            "body": json.dumps({"message": "Calculation successful", "result": result}),
         }
 
     except ValueError as ve:
         # Handle value errors (e.g., missing or invalid input)
-        return {
-            'statusCode': 400,
-            'body': json.dumps({
-                'error': str(ve)
-            })
-        }
+        return {"statusCode": 400, "body": json.dumps({"error": str(ve)})}
 
     except Exception as e:
         # Handle any unexpected errors
         return {
-            'statusCode': 500,
-            'body': json.dumps({
-                'error': 'An internal error occurred',
-                'details': str(e)
-            })
+            "statusCode": 500,
+            "body": json.dumps(
+                {"error": "An internal error occurred", "details": str(e)}
+            ),
         }

@@ -11,6 +11,7 @@ repos:
       - id: check-json
       - id: check-merge-conflict
       - id: check-shebang-scripts-are-executable
+        exclude: "^(codeTemplates/|tempalte/|{% if code_templates %}codeTemplates{% endif %}/)"
       - id: check-symlinks
       - id: check-toml
       - id: check-xml
@@ -43,6 +44,11 @@ repos:
       - id: terraform_docs
       - id: terraform_checkov
       - id: infracost_breakdown
+  - repo: https://github.com/adrienverge/yamllint
+    rev: v1.26.0
+    hooks:
+      - id: yamllint
+        language_version: python3.9
   - repo: https://github.com/ansible/ansible-lint
     rev: v6.17.2
     hooks:

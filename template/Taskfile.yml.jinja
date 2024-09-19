@@ -27,7 +27,8 @@ tasks:
     silent: true
   snyk:
     cmds:
-      - snyk test --file=osConfig/languages/python/requirements.txt #TODO: Fix path - make relative to project
+      - snyk test --file=requirements.txt
+      - snyk test --file=package.json
     silent: true
   ghReleaseInit:
     cmds:
