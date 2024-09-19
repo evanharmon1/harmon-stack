@@ -1,8 +1,6 @@
-# questions for Copier new project template
+# copier.yml for the Copier new project template tool
 # Run it with: `copier copy path/to/harmon-stack path/to/new-project --trust`
 # E.g: `copier copy harmon-stack new-project --trust`
-
-# Potential types: astro, astrowind, nextjs, t3, wdc, sst, python, fastapi, flask, django, dashboard, control panel, go, terraform, pulumi, automattion / pipeline, ansible, kestra, datascience, java
 
 project_name:
   type: str

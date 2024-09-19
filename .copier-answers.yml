@@ -1,0 +1,25 @@
+# Changes here will be overwritten by Copier
+_commit: v2.0.12
+_src_path: test/harmon-stack
+bunch_add: false
+ci_cd: github_actions
+code_templates: false
+configuration_management: none
+data_folder: false
+design_files: false
+devcontainer: false
+git_init: false
+github_collaboration_templates: true
+github_release_init: false
+github_remote_create: false
+infra: []
+license: private
+observability: []
+obsidian_project_add: false
+project_description: 'TODO: project_description'
+project_name: Harmon Stack
+project_slug: harmon-stack
+project_type: code
+project_url: 'TODO: project_url'
+run_task_bootstrap: false
+run_task_install: false
