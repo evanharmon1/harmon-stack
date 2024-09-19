@@ -21,7 +21,7 @@ tasks:
     silent: true
   security:
     cmds:
-      - ./osConfig/shell/bin/check_for_pattern.sh "secret" #TODO: Fix path - make relative to project
+      - utils/check_for_pattern.sh "secret" #TODO: Add this script
       - whispers --config test/whisperConfig.yml --severity BLOCKER,CRITICAL .
       - task: snyk
     silent: true
