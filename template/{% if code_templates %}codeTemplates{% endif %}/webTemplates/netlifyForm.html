@@ -1,0 +1,36 @@
+<form name="contact" method="POST" data-netlify="true" netlify-honeypot="bot-field">
+  <!-- Hidden honeypot field to prevent bots -->
+  <input type="hidden" name="form-name" value="contact">
+  <p hidden>
+    <label>Don’t fill this out if you're human: <input name="bot-field"></label>
+  </p>
+
+  <p>
+    <label for="first-name">First Name:</label>
+    <input type="text" id="first-name" name="first-name" required minlength="2">
+  </p>
+
+  <p>
+    <label for="last-name">Last Name:</label>
+    <input type="text" id="last-name" name="last-name" required minlength="2">
+  </p>
+
+  <p>
+    <label for="email">Email Address:</label>
+    <input type="email" id="email" name="email" required>
+  </p>
+
+  <p>
+    <label for="phone">Phone Number:</label>
+    <input type="tel" id="phone" name="phone" pattern="[0-9]{3}-[0-9]{3}-[0-9]{4}" placeholder="123-456-7890" required>
+  </p>
+
+  <p>
+    <label for="address">Address:</label>
+    <input type="text" id="address" name="address" required>
+  </p>
+
+  <p>
+    <button type="submit">Submit</button>
+  </p>
+</form>
