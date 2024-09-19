@@ -1,3 +1,4 @@
+# Taskfile for Harmon Stack
 version: "3"
 tasks:
   boostrap:
@@ -28,22 +29,24 @@ tasks:
     cmds:
       - snyk test --file=osConfig/languages/python/requirements.txt #TODO: Fix path - make relative to project
     silent: true
-  ghReleaseInit:
+  ghReleaseInit: 
     cmds:
-      - git add -A
+      - git add .
       - git commit -m 'Initial release v0.0.1'
       - git tag -a v0.0.1 -m "Initial release v0.0.1"
+      - git push origin main 
+      - git push origin --tags
       - gh release create
     silent: false
   bunchAdd:
     cmds:
-      - cp '.meta/Code Project - Harmon Stack.bunch' .
-      - ln -s 'Code Project - Harmon Stack.bunch' '.env/Code Project - Harmon Stack.bunch'
+      - mv '.meta/Code Project - Harmon Stack.bunch' '/Users/evan/Library/Mobile Documents/com~apple~CloudDocs/Bunches/'
+      - ln -s '/Users/evan/Library/Mobile Documents/com~apple~CloudDocs/Bunches/Code Project - Harmon Stack.bunch' .meta
     silent: false
   obsidianAdd:
     cmds:
-      - mv '{{ project_name }}.md' {{ obsidian_directory }}/Professional/
-      - ln -s {{ obsidian_directory }}/Professional/'{{ project_name }}.md' .meta
+      - mv '.meta/Harmon Stack.md' '/Users/evan/Local/Memex/Professional/'
+      - ln -s '/Users/evan/Local/Memex/Professional/Harmon Stack.md' .meta
     silent: false
   vBumpPatch:
     desc: Bump to the next patch version
@@ -67,6 +70,7 @@ tasks:
       - echo "Bumping patch version to {{.NEW_VERSION}}"
       - git tag {{.NEW_VERSION}}
       - git push origin {{.NEW_VERSION}}
+      - gh release create
   vBumpMinor:
     desc: Bump to the next minor version
     vars:
@@ -87,6 +91,7 @@ tasks:
       - echo "Bumping minor version to {{.NEW_VERSION}}"
       - git tag {{.NEW_VERSION}}
       - git push origin {{.NEW_VERSION}}
+      - gh release create
   vBumpMajor:
     desc: Bump to the next major version
     vars:
@@ -105,3 +110,4 @@ tasks:
       - echo "Bumping major version to {{.NEW_VERSION}}"
       - git tag {{.NEW_VERSION}}
       - git push origin {{.NEW_VERSION}}
+      - gh release create

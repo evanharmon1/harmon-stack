@@ -1,3 +1,19 @@
 .DS_Store
 Brewfile.lock.json
+
 .meta
+todo.md
+*.code-workspace
+
+#             .env
+#------------------------------------------------------------------------------
+# Ignore all .env files
+.env
+# Ignore all .env files in any subdirectory
+**/.env
+# Ignore all .env.* files (e.g., .env.local, .env.production)
+.env.*
+# Ignore all .env.* files in any subdirectory
+**/.env.*
+# Ignore any directory named .env
+.env/

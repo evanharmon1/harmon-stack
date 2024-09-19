@@ -1,5 +1,6 @@
 # questions for Copier new project template
-# Run it with: `copier copy path/to/repo path/to/destination/repo-name` E.g, `copier copy harmon-stack new-repo --trust`.
+# Run it with: `copier copy path/to/harmon-stack path/to/new-project --trust`
+# E.g: `copier copy harmon-stack new-project --trust`
 
 # Potential types: astro, astrowind, nextjs, t3, wdc, sst, python, fastapi, flask, django, dashboard, control panel, go, terraform, pulumi, automattion / pipeline, ansible, kestra, datascience, java
 
@@ -145,13 +146,11 @@ observability:
     - healthcheck
   default: none
 
-configuration_management:
-  type: str
-  help: "CONFIGURATION MANAGEMENT: Add Configuration management tool"
-  choices:
-    - none
-    - ansible
-  default: none
+# Configuration Management
+ansible:
+  type: bool
+  help: "Ansible: Add Ansible setup?"
+  default: yes
 
 data_folder:
   type: bool
@@ -162,6 +161,18 @@ devcontainer:
   type: bool
   help: ".DEVCONTAINER: Add .devcontainer?"
   default: no
+
+justfile:
+  type: bool
+  help: "Include 'justfile' task runner?"
+  default: no
+  when: false
+
+howzit:
+  type: bool
+  help: "Include 'howzit' build file?"
+  default: no
+  when: false
 
 author_first_name:
   type: str
