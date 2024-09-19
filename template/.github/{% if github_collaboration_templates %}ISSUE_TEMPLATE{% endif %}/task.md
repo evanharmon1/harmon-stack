@@ -17,7 +17,6 @@ What outcome should the task achieve?
 
 - [ ] Criteria 1
 - [ ] Criteria 2
-- [ ] Criteria 3
 
 **Additional context**
 Add any other context or screenshots for this task here.
