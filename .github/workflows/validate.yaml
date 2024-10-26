@@ -6,12 +6,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - run: echo "Triggered by a ${{ github.event_name }} event."
-      - run: sudo apt install python3.9 python3.10 python3.11 python3.12
       - uses: actions/checkout@v3
       - uses: actions/setup-python@v4
         with:
-          python-version: 3.12
+          python-version: 3.9
       - uses: pre-commit/action@v3.0.1
-      # - uses: pre-commit-ci/lite-action@v1.1.0
-      #   if: always()
-      - run: echo "COMPLETE TEST"
+      - uses: pre-commit-ci/lite-action@v1.1.0
