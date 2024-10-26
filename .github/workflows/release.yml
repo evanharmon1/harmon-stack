@@ -1,0 +1,55 @@
+name: Bump Release Version
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  bump-release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v3
+
+      - name: Get Latest Tag
+        id: get_latest_tag
+        run: |
+          LATEST_TAG=$(git tag --sort=-version:refname | head -n1)
+          echo "LATEST_TAG=${LATEST_TAG}" >> $GITHUB_ENV
+
+      - name: Get Current Version
+        id: get_current_version
+        run: |
+          VERSION=${{ env.LATEST_TAG }}
+          VERSION=${VERSION#v}
+          echo "VERSION=${VERSION}" >> $GITHUB_ENV
+
+      - name: Split Version into Components
+        id: split_version
+        run: |
+          MAJOR=$(echo "${{ env.VERSION }}" | cut -d. -f1)
+          MINOR=$(echo "${{ env.VERSION }}" | cut -d. -f2)
+          echo "MAJOR=${MAJOR}" >> $GITHUB_ENV
+          echo "MINOR=${MINOR}" >> $GITHUB_ENV
+
+      - name: Calculate New Minor Version
+        id: calculate_new_version
+        run: |
+          NEW_MINOR=$(( ${{ env.MINOR }} + 1 ))
+          NEW_VERSION="v${{ env.MAJOR }}.${NEW_MINOR}.0"
+          echo "NEW_VERSION=${NEW_VERSION}" >> $GITHUB_ENV
+
+      - name: Display Version Info
+        run: |
+          echo "Latest tag is ${{ env.LATEST_TAG }}"
+          echo "Current version is ${{ env.VERSION }}"
+          echo "Bumping minor version to ${{ env.NEW_VERSION }}"
+
+      - name: Create New Git Tag
+        run: |
+          git tag "${{ env.NEW_VERSION }}"
+          git push origin "${{ env.NEW_VERSION }}"
+
+      - name: Create GitHub Release
+        run: |
+          gh release create "${{ env.NEW_VERSION }}" --generate-notes
