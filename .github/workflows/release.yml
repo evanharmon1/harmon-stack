@@ -42,7 +42,12 @@ jobs:
         id: calculate_new_patch_version
         run: |
           NEW_PATCH=$(( ${{ env.PATCH }} + 1 ))
-          NEW_VERSION="v${{ env.MAJOR }}.${{ env.MINOR }}.${{ NEW_PATCH }}"
+          echo "NEW_PATCH=${NEW_PATCH}" >> $GITHUB_ENV
+
+      - name: Set New Version
+        id: set_new_version
+        run: |
+          NEW_VERSION="v${{ env.MAJOR }}.${{ env.MINOR }}.${{ env.NEW_PATCH }}"
           echo "NEW_VERSION=${NEW_VERSION}" >> $GITHUB_ENV
 
       - name: Display Version Info
