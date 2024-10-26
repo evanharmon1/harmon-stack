@@ -12,11 +12,11 @@ repos:
       - id: check-merge-conflict
       - id: check-shebang-scripts-are-executable
         exclude: "^(codeTemplates/|tempalte/|{% if code_templates %}codeTemplates{% endif %}/)"
-      - id: check-symlinks
+      # - id: check-symlinks # I needed to disable since I use symbolic links to files outside my repo which will cause the CI check to fail.
       - id: check-toml
       - id: check-xml
       - id: debug-statements
-      # - id: destroyed-symlinks # I needed to disable since I use symbolic links to files outside my repo which will cause the CI check to fail.
+      - id: destroyed-symlinks
       # - id: detect-aws-credentials
       - id: detect-private-key
       - id: mixed-line-ending
