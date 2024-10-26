@@ -21,13 +21,13 @@ tasks:
     silent: true
   security:
     cmds:
-      - ./osConfig/shell/bin/check_for_pattern.sh "secret" #TODO: Fix path - make relative to project
+      - utils/check_for_pattern.sh "secret" #TODO: Add this script
       - whispers --config test/whisperConfig.yml --severity BLOCKER,CRITICAL .
       - task: snyk
     silent: true
   snyk:
     cmds:
-      - snyk test --file=osConfig/languages/python/requirements.txt #TODO: Fix path - make relative to project
+      - snyk test --file=requirements.txt
     silent: true
   ghReleaseInit:
     cmds:
