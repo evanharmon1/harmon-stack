@@ -7,9 +7,13 @@ on:
 jobs:
   bump-release:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v3
+        with:
+          fetch-depth: 0 # Fetch all history for versioning
 
       - name: Get Latest Tag
         id: get_latest_tag
