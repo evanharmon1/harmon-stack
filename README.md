@@ -5,6 +5,8 @@ Author: Evan Harmon
 ## Usage
 Create a new project with: `copier copy harmon-stack new-project --trust`
 
+test
+
 The command will ask you a series of questions to create a new project.
 Before using for the first time you will probaby want to customize the copier.yml file. Most importantly, the variables that aren't presented to you when you create a project (i.e, the varables that are set to `when: false`).
 
