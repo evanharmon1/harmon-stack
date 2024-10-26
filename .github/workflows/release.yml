@@ -33,27 +33,33 @@ jobs:
         run: |
           MAJOR=$(echo "${{ env.VERSION }}" | cut -d. -f1)
           MINOR=$(echo "${{ env.VERSION }}" | cut -d. -f2)
+          PATCH=$(echo "${{ env.VERSION }}" | cut -d. -f3)
           echo "MAJOR=${MAJOR}" >> $GITHUB_ENV
           echo "MINOR=${MINOR}" >> $GITHUB_ENV
+          echo "PATCH=${PATCH}" >> $GITHUB_ENV
 
-      - name: Calculate New Minor Version
-        id: calculate_new_version
+      - name: Calculate New Patch Version
+        id: calculate_new_patch_version
         run: |
-          NEW_MINOR=$(( ${{ env.MINOR }} + 1 ))
-          NEW_VERSION="v${{ env.MAJOR }}.${NEW_MINOR}.0"
+          NEW_PATCH=$(( ${{ env.PATCH }} + 1 ))
+          NEW_VERSION="v${{ env.MAJOR }}.${{ env.MINOR }}.${{ NEW_PATCH }}"
           echo "NEW_VERSION=${NEW_VERSION}" >> $GITHUB_ENV
 
       - name: Display Version Info
         run: |
           echo "Latest tag is ${{ env.LATEST_TAG }}"
           echo "Current version is ${{ env.VERSION }}"
-          echo "Bumping minor version to ${{ env.NEW_VERSION }}"
+          echo "Bumping patch version to ${{ env.NEW_VERSION }}"
 
       - name: Create New Git Tag
         run: |
           git tag "${{ env.NEW_VERSION }}"
           git push origin "${{ env.NEW_VERSION }}"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Create GitHub Release
         run: |
           gh release create "${{ env.NEW_VERSION }}" --generate-notes
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
