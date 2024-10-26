@@ -14,14 +14,17 @@ tasks:
   validate:
     cmds:
       - pre-commit run --all-files
-      - task: snyk
       # - shellcheck osConfig/mac/updateMac.sh
       # - shellcheck osConfig/mac/setupMac.sh
       # - shellcheck osConfig/mac/configureMacSettings.sh
     silent: true
+  pre-commit:
+    cmds:
+      - pre-commit run --all-files
+    silent: true
   security:
     cmds:
-      - utils/check_for_pattern.sh "secret" #TODO: Add this script
+      - ./check_for_pattern.sh . "*secret*"
       - whispers --config test/whisperConfig.yml --severity BLOCKER,CRITICAL .
       - task: snyk
     silent: true
