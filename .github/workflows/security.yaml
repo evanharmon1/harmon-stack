@@ -3,13 +3,13 @@ run-name: ${{ github.actor }} is running Security Actions
 on: [pull_request]
 jobs:
   security:
-    runs-on: ubuntu-latest
+    runs-on: node20
     steps:
       - run: echo "Triggered by a ${{ github.event_name }} event."
       - uses: actions/checkout@v3
       # E.g., to check for my `~/Local/.secret` file
       - name: Custom check for secret files
-        run: ./osConfig/shell/bin/check_for_pattern.sh . "*secret*"
+        run: ./check_for_pattern.sh . "*secret*"
       - name: Install Whispers
         run: sudo pip install whispers
       # Use whispers to check repo for unecrypted secrets, passwords, etc.

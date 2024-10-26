@@ -3,7 +3,7 @@ run-name: ${{ github.actor }} is running Validate Actions
 on: [pull_request]
 jobs:
   validate:
-    runs-on: ubuntu-latest
+    runs-on: node20
     steps:
       - run: echo "Triggered by a ${{ github.event_name }} event."
       - uses: actions/checkout@v3

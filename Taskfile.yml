@@ -21,7 +21,7 @@ tasks:
     silent: true
   security:
     cmds:
-      - utils/check_for_pattern.sh "secret" #TODO: Add this script
+      - ./check_for_pattern.sh "secret"
       - whispers --config test/whisperConfig.yml --severity BLOCKER,CRITICAL .
       - task: snyk
     silent: true
