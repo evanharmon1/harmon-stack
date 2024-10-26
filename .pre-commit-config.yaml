@@ -49,15 +49,15 @@ repos:
     hooks:
       - id: yamllint
         language_version: python3.9
-  # - repo: https://github.com/ansible/ansible-lint
-  #   rev: v24.9.2
-  #   hooks:
-  #     - id: ansible-lint
-  #       entry: python3 -m ansiblelint -v --force-color
-  #       language: python
-  #       # do not pass files to ansible-lint, see:
-  #       # https://github.com/ansible/ansible-lint/issues/611
-  #       pass_filenames: false
+  - repo: https://github.com/ansible/ansible-lint
+    rev: v24.1.0
+    hooks:
+      - id: ansible-lint
+        entry: python3 -m ansiblelint -v --force-color
+        language: python
+        # do not pass files to ansible-lint, see:
+        # https://github.com/ansible/ansible-lint/issues/611
+        pass_filenames: false
 ci:
   autofix_commit_msg: |
     [pre-commit.ci] auto fixes from pre-commit.com hooks
