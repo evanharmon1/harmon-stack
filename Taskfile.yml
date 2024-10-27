@@ -31,6 +31,7 @@ tasks:
   snyk:
     cmds:
       - snyk test --file=requirements.txt
+      - snyk test --file=package.json
     silent: true
   ghReleaseInit:
     cmds:
