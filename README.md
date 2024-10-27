@@ -3,6 +3,7 @@ This repo allows you to create a new project using the Harmon Stack template whi
 Author: Evan Harmon
 
 [![Validate](https://github.com/evanharmon1/harmon-stack/actions/workflows/validate.yml/badge.svg)](https://github.com/evanharmon1/harmon-stack/actions/workflows/validate.yml)
+[![Security](https://github.com/evanharmon1/harmon-stack/actions/workflows/security.yml/badge.svg)](https://github.com/evanharmon1/harmon-stack/actions/workflows/security.yml)
 
 ## Usage
 Create a new project with: `copier copy harmon-stack new-project --trust`
