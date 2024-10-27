@@ -50,7 +50,7 @@ repos:
       - id: yamllint
         language_version: python3.9
   - repo: https://github.com/ansible/ansible-lint
-    rev: v24.1.0
+    rev: v6.22.2
     hooks:
       - id: ansible-lint
         entry: python3 -m ansiblelint -v --force-color
