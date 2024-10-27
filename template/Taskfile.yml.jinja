@@ -14,14 +14,17 @@ tasks:
   validate:
     cmds:
       - pre-commit run --all-files
-      - task: snyk
       # - shellcheck osConfig/mac/updateMac.sh
       # - shellcheck osConfig/mac/setupMac.sh
       # - shellcheck osConfig/mac/configureMacSettings.sh
     silent: true
+  pre-commit:
+    cmds:
+      - pre-commit run --all-files
+    silent: true
   security:
     cmds:
-      - ./check_for_pattern.sh "secret"
+      - ./check_for_pattern.sh . "*secret*"
       - whispers --config test/whisperConfig.yml --severity BLOCKER,CRITICAL .
       - task: snyk
     silent: true
@@ -82,7 +85,7 @@ tasks:
       - echo "Bumping minor version to {{.NEW_VERSION}}"
       - git tag {{.NEW_VERSION}}
       - git push origin {{.NEW_VERSION}}
-      - gh release create
+      - gh release create {{.NEW_VERSION}} --generate-notes
   vBumpMajor:
     desc: Bump to the next major version
     vars:
@@ -100,8 +103,8 @@ tasks:
       - echo "Current version is {{.VERSION}}"
       - echo "Bumping major version to {{.NEW_VERSION}}"
       - git tag {{.NEW_VERSION}}
-      - git push origin {{.NEW_VERSION}}{% endraw %}
-      - gh release create
+      - git push origin {{.NEW_VERSION}}
+      - gh release create{% endraw %}
   bunchAdd:
     cmds:
       - mv '.meta/Code Project - {{ project_name }}.bunch' '{{ bunches_directory }}/'
