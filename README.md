@@ -1,5 +1,6 @@
 # Harmon Stack
 This repo allows you to create a new project using the Harmon Stack template which bootstraps numerous configurations and tools for you.
+
 Author: Evan Harmon
 
 [![Validate](https://github.com/evanharmon1/harmon-stack/actions/workflows/validate.yml/badge.svg)](https://github.com/evanharmon1/harmon-stack/actions/workflows/validate.yml)

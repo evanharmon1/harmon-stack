@@ -10,6 +10,11 @@ jobs:
       # E.g., to check for my `~/Local/.secret` file
       - name: Custom check for secret files
         run: ./check_for_pattern.sh . "*secret*"
+      - name: Force the installation of the required versions due to pip not being able to uninstall system packages
+        run: |
+          sudo pip install --ignore-installed typing_extensions==4.12.2
+          sudo pip install --ignore-installed PyYAML
+          sudo pip install --ignore-installed jsonschema
       - name: Install Whispers
         run: sudo pip install whispers
       # Use whispers to check repo for unecrypted secrets, passwords, etc.
