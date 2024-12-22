@@ -38,4 +38,4 @@ Before using for the first time you will probaby want to customize the copier.ym
 - .ansible-lint-ignore
 
 ## Todo File
-[todo.md]({{ project_slug }}/todo.md)
+[todo.md](todo.md)
