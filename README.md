@@ -11,8 +11,13 @@ Create a new project with: `copier copy harmon-stack new-project --trust`
 The command will ask you a series of questions to create a new project.
 Before using for the first time you will probaby want to customize the copier.yml file. Most importantly, the variables that aren't presented to you when you create a project (i.e, the varables that are set to `when: false`).
 
-### Normal Procedure For New Projects
-- Choose to create a new remote GitHub repository, initialize it, create a new release, but choose to do so from the local branch at the current path.
+### Standard Procedure For New Projects
+1. From your git directory: `copier copy harmon-stack new-project --trust`, replacing `new-project` with the name of your new project.
+2. Initialize git repo?: Yes
+3. Create new repo on GitHub?: Yes
+4. Create initial release on GitHub?: Yes
+After initial questions, GitHub will ask questions about creating the repo on GitHub.
+1. Choose "Push an existing localy repository to GitHub" and choose the current path (.)
 
 ## Setup & Installation
 
