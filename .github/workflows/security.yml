@@ -6,7 +6,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - run: echo "Triggered by a ${{ github.event_name }} event."
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       # E.g., to check for my `~/Local/.secret` file
       - name: Custom check for secret files
         run: ./check_for_pattern.sh . "*secret*"
@@ -22,7 +22,7 @@ jobs:
         run: whispers --config test/whisperConfig.yml --severity BLOCKER,CRITICAL . > /tmp/scan_output.json
       # Upload Artifacts
       - name: Upload the scan output
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: scan_results
           path: /tmp/scan_output.json
@@ -30,7 +30,7 @@ jobs:
   sast-dependencies:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       # Node.js dependencies scan
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -68,7 +68,7 @@ jobs:
   sast-code:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
