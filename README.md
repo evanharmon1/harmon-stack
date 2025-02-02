@@ -5,6 +5,7 @@ Author: Evan Harmon
 
 [![Validate](https://github.com/evanharmon1/harmon-stack/actions/workflows/validate.yml/badge.svg)](https://github.com/evanharmon1/harmon-stack/actions/workflows/validate.yml)
 [![Security](https://github.com/evanharmon1/harmon-stack/actions/workflows/security.yml/badge.svg)](https://github.com/evanharmon1/harmon-stack/actions/workflows/security.yml)
+[![Copier](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/copier-org/copier/master/img/badge/badge-grayscale-inverted-border-orange.json)](https://github.com/copier-org/copier)
 
 ## Usage
 Create a new project with: `copier copy harmon-stack new-project --trust`
