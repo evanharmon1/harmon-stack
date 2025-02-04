@@ -32,7 +32,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       # Node.js dependencies scan
-      # Disabled since harmon-stack doesn not build a package.json file
+      # Disabled since harmon-stack does not build a package.json file
       # - name: Setup Node.js
       #   uses: actions/setup-node@v4
       #   with:
