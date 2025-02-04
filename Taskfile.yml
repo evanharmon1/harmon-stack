@@ -22,17 +22,16 @@ tasks:
     silent: true
   check:
     cmds:
-      - npm run check:astro
-      - npm run check:eslint
-      - cmd: npm run check:prettier
-        # - shellcheck osConfig/mac/updateMac.sh
-        # - shellcheck osConfig/mac/setupMac.sh
-        # - shellcheck osConfig/mac/configureMacSettings.sh
-        ignore_error: true
+      - echo "No commands to check"
+    ignore_error:
+      true
+      # - shellcheck osConfig/mac/updateMac.sh
+      # - shellcheck osConfig/mac/setupMac.sh
+      # - shellcheck osConfig/mac/configureMacSettings.sh
     silent: true
   fix:
     cmds:
-      - npm run fix
+      - echo "No commands to fix"
     silent: true
   security:
     cmds:
