@@ -1,5 +1,5 @@
 # Harmon Stack
-This repo allows you to create a new project using the Harmon Stack template which bootstraps numerous configurations and tools for you.
+This repo allows you to create a new project using the Harmon Stack template which bootstraps numerous configurations and tools for you. Mainly, it is a streamlined way to bootstrap a lot of DevOps tools, CI/CD, linting, security checks, and a task runner. This repo is a fork of the [Harmon Stack](https://github.com/harmon-stack/harmon-stack) repo.
 
 Author: Evan Harmon
 
