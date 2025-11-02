@@ -4,7 +4,6 @@ _src_path: test/harmon-stack
 bunch_add: false
 ci_cd: github_actions
 code_templates: false
-configuration_management: none
 data_folder: false
 design_files: false
 devcontainer: false

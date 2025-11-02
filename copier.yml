@@ -55,7 +55,7 @@ git_provider:
     - github
     - gitlab
     - other
-    - "none"
+    - none
   default: github
   when: false
 
@@ -84,7 +84,7 @@ ci_cd:
   help: "CI/CD: Add CI/CD files?"
   choices:
     - github_actions
-    - "none"
+    - none
     - gitlab_ci
   default: github_actions
 
@@ -110,41 +110,41 @@ code_templates:
   help: "CODE TEMPLATES: Add code templates? (scripts, web forms, automation, serverless functions, etc.)?"
   default: no
 
-infra:
-  type: str
-  help: "INFRA: Add Infrastructure, hosting, cloud provider, deployment target, or IaC tools?"
-  multiselect: true
-  choices:
-    - "none"
-    - docker
-    - terraform
-    - pulumi
-    - cloudformation
-    - netlify
-    - vercel
-    - unraid
-    - gcp
-    - firebase
-    - supabase
-    - aws
-    - do
-    - azure
-    - cloudflare
-    - github_pages
-    - cloudflare_pages
-  default:
-    - "none"
+# infra:
+#   type: str
+#   help: "INFRA: Add Infrastructure, hosting, cloud provider, deployment target, or IaC tools?"
+#   multiselect: true
+#   choices:
+#     - na
+#     - docker
+#     - terraform
+#     - pulumi
+#     - cloudformation
+#     - netlify
+#     - vercel
+#     - unraid
+#     - gcp
+#     - firebase
+#     - supabase
+#     - aws
+#     - do
+#     - azure
+#     - cloudflare
+#     - github_pages
+#     - cloudflare_pages
+#   default:
+#     - na
 
-observability:
-  type: str
-  help: "OBSERVABILITY: Add observability tools"
-  multiselect: true
-  choices:
-    - "none"
-    - uptime_kuma
-    - healthcheck
-  default:
-    - "none"
+# observability:
+#   type: str
+#   help: "OBSERVABILITY: Add observability tools"
+#   multiselect: true
+#   choices:
+#     - na
+#     - uptime_kuma
+#     - healthcheck
+#   default:
+#     - na
 
 # Configuration Management
 ansible:
@@ -287,17 +287,17 @@ current_time:
   default: "{{ '%H:%M:%S' | strftime }}"
   when: false
 
-ai_tool:
-  type: str
-  choices:
-    - "none"
-    - openai
-    - anthropic
-    - perplexity
-    - gemini
-    - cursor
-  default: "none"
-  when: false
+# ai_tool:
+#   type: str
+#   choices:
+#     - "none"
+#     - openai
+#     - anthropic
+#     - perplexity
+#     - gemini
+#     - cursor
+#   default: "none"
+#   when: false
 
 # API Keys
 # _ai_tool_key:
