@@ -111,7 +111,7 @@ code_templates:
   default: no
 
 infra:
-  type: list
+  type: str
   help: "INFRA: Add Infrastructure, hosting, cloud provider, deployment target, or IaC tools?"
   multiselect: true
   choices:
@@ -133,11 +133,11 @@ infra:
     - github_pages
     - cloudflare_pages
   default:
-    - []
+    - "none"
   when: false
 
 observability:
-  type: list
+  type: str
   help: "OBSERVABILITY: Add observability tools"
   multiselect: true
   choices:
@@ -145,14 +145,17 @@ observability:
     - uptime_kuma
     - healthcheck
   default:
-    - []
+    - "none"
   when: false
 
 # Configuration Management
 ansible:
-  type: bool
+  type: str
   help: "Ansible: Add Ansible setup?"
-  default: yes
+  choices:
+    - "none"
+    - ansible
+  default: "none"
 
 data_folder:
   type: bool
