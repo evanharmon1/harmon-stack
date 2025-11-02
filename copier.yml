@@ -115,7 +115,6 @@ infra:
   help: "INFRA: Add Infrastructure, hosting, cloud provider, deployment target, or IaC tools?"
   multiselect: true
   choices:
-    - "none"
     - docker
     - terraform
     - pulumi
@@ -132,17 +131,16 @@ infra:
     - cloudflare
     - github_pages
     - cloudflare_pages
-  default: ["none"]
+  default: []
 
 observability:
   type: str
   help: "OBSERVABILITY: Add observability tools"
   multiselect: true
   choices:
-    - "none"
     - uptime_kuma
     - healthcheck
-  default: ["none"]
+  default: []
 
 # Configuration Management
 ansible:
