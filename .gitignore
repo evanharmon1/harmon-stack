@@ -55,6 +55,8 @@ Thumbs.db
 .meta
 todo.md
 *.code-workspace
+.copier-answers.yml
+.copier-answers.yml.backup
 
 #             .env
 #------------------------------------------------------------------------------
