@@ -132,7 +132,7 @@ infra:
     - cloudflare
     - github_pages
     - cloudflare_pages
-  default: none
+  default: ['none']
 
 observability:
   type: str
@@ -142,7 +142,7 @@ observability:
     - none
     - uptime_kuma
     - healthcheck
-  default: none
+  default: ['none']
 
 # Configuration Management
 ansible:
@@ -294,7 +294,7 @@ ai_tool:
     - perplexity
     - gemini
     - cursor
-  defult: none
+  default: none
   when: false
 
 # API Keys
