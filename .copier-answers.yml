@@ -11,9 +11,7 @@ git_init: false
 github_collaboration_templates: true
 github_release_init: false
 github_remote_create: false
-infra: []
 license: private
-observability: []
 obsidian_project_add: false
 project_description: "TODO: project_description"
 project_name: Harmon Stack
