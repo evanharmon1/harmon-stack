@@ -55,7 +55,7 @@ git_provider:
     - github
     - gitlab
     - other
-    - none
+    - "none"
   default: github
   when: false
 
@@ -84,7 +84,7 @@ ci_cd:
   help: "CI/CD: Add CI/CD files?"
   choices:
     - github_actions
-    - none
+    - "none"
     - gitlab_ci
   default: github_actions
 
@@ -115,7 +115,7 @@ infra:
   help: "INFRA: Add Infrastructure, hosting, cloud provider, deployment target, or IaC tools?"
   multiselect: true
   choices:
-    - none
+    - "none"
     - docker
     - terraform
     - pulumi
@@ -133,18 +133,18 @@ infra:
     - github_pages
     - cloudflare_pages
   default:
-    - none
+    - "none"
 
 observability:
   type: str
   help: "OBSERVABILITY: Add observability tools"
   multiselect: true
   choices:
-    - none
+    - "none"
     - uptime_kuma
     - healthcheck
   default:
-    - none
+    - "none"
 
 # Configuration Management
 ansible:
@@ -290,13 +290,13 @@ current_time:
 ai_tool:
   type: str
   choices:
-    - none
+    - "none"
     - openai
     - anthropic
     - perplexity
     - gemini
     - cursor
-  default: none
+  default: "none"
   when: false
 
 # API Keys
