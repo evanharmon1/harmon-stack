@@ -55,7 +55,6 @@ git_provider:
     - github
     - gitlab
     - other
-    - "none"
   default: github
   when: false
 
@@ -84,7 +83,6 @@ ci_cd:
   help: "CI/CD: Add CI/CD files?"
   choices:
     - github_actions
-    - "none"
     - gitlab_ci
   default: github_actions
 
@@ -120,9 +118,7 @@ ansible:
   type: str
   help: "Ansible: Add Ansible setup?"
   choices:
-    - "none"
     - ansible
-  default: "none"
 
 data_folder:
   type: bool
