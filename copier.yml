@@ -111,6 +111,7 @@ code_templates:
   default: no
 
 infra:
+  type: str
   help: "INFRA: Add Infrastructure, hosting, cloud provider, deployment target, or IaC tools?"
   multiselect: true
   choices:
@@ -133,6 +134,7 @@ infra:
   default: []
 
 observability:
+  type: str
   help: "OBSERVABILITY: Add observability tools"
   multiselect: true
   choices:
