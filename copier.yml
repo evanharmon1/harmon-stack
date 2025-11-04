@@ -131,7 +131,6 @@ infra:
     - cloudflare
     - github_pages
     - cloudflare_pages
-  default: []
 
 observability:
   type: str
@@ -140,7 +139,6 @@ observability:
   choices:
     - uptime_kuma
     - healthcheck
-  default: []
 
 # Configuration Management
 ansible:
