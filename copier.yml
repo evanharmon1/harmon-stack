@@ -110,35 +110,10 @@ code_templates:
   help: "CODE TEMPLATES: Add code templates? (scripts, web forms, automation, serverless functions, etc.)?"
   default: no
 
-infra:
-  type: str
-  help: "INFRA: Add Infrastructure, hosting, cloud provider, deployment target, or IaC tools?"
-  multiselect: true
-  choices:
-    - docker
-    - terraform
-    - pulumi
-    - cloudformation
-    - netlify
-    - vercel
-    - unraid
-    - gcp
-    - firebase
-    - supabase
-    - aws
-    - do
-    - azure
-    - cloudflare
-    - github_pages
-    - cloudflare_pages
-
-observability:
-  type: str
-  help: "OBSERVABILITY: Add observability tools"
-  multiselect: true
-  choices:
-    - uptime_kuma
-    - healthcheck
+docker:
+  type: bool
+  help: "Add Docker files?"
+  default: no
 
 # Configuration Management
 ansible:
