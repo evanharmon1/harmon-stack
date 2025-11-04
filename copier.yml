@@ -255,18 +255,6 @@ current_time:
   default: "{{ '%H:%M:%S' | strftime }}"
   when: false
 
-# ai_tool:
-#   type: str
-#   choices:
-#     - "none"
-#     - openai
-#     - anthropic
-#     - perplexity
-#     - gemini
-#     - cursor
-#   default: "none"
-#   when: false
-
 # API Keys
 # _ai_tool_key:
 #   when: false
