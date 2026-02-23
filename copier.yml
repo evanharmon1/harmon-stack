@@ -74,6 +74,7 @@ ci_cd:
     - github_actions
     - gitlab_ci
   default: github_actions
+  when: false
 
 # Mostly default good defaults (Most Nos) below here vvv so usually just smash enter from here
 
