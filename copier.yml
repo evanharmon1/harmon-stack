@@ -115,10 +115,9 @@ docker:
 
 # Configuration Management
 ansible:
-  type: str
+  type: bool
   help: "Ansible: Add Ansible setup?"
-  choices:
-    - ansible
+  default: no
 
 data_folder:
   type: bool
