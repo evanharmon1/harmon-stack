@@ -19,17 +19,6 @@ project_description:
   placeholder: "TODO: project_description"
   default: "TODO: project_description"
 
-project_type:
-  type: str
-  help: "TYPE: Type of project?"
-  choices:
-    - code
-    - project
-    - business
-    - documentation
-    - other
-  default: code
-
 bunch_add:
   type: bool
   help: "BUNCH: Add Bunch file to project?"
@@ -98,32 +87,6 @@ run_task_install:
   help: "TASK INSTALL: Run 'task install' command?"
   default: no
 
-design_files:
-  type: bool
-  help: "DESIGN: Add design files (e.g. wireframe tools, architecture diagramming tools, etc.)?"
-  default: no
-
-code_templates:
-  type: bool
-  help: "CODE TEMPLATES: Add code templates? (scripts, web forms, automation, serverless functions, etc.)?"
-  default: no
-
-docker:
-  type: bool
-  help: "Add Docker files?"
-  default: no
-
-# Configuration Management
-ansible:
-  type: bool
-  help: "Ansible: Add Ansible setup?"
-  default: no
-
-data_folder:
-  type: bool
-  help: "DATA: Add data folder?"
-  default: no
-
 devcontainer:
   type: bool
   help: ".DEVCONTAINER: Add .devcontainer?"
@@ -183,12 +146,12 @@ repo_url:
 
 organization:
   type: str
-  default: "Harmon Ops"
+  default: "Harmon Lab"
   when: false
 
 organization_url:
   type: str
-  default: "https://harmonops.com"
+  default: "https://harmonlab.net"
   when: false
 
 organization_email:
