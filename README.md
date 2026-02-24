@@ -1,6 +1,6 @@
 # Harmon Init
 
-This repo allows you to create a new project using the Harmon Init template which bootstraps numerous configurations and tools for you. Mainly, it is a streamlined way to bootstrap a lot of DevOps tools, CI/CD, linting, security checks, and a task runner. This repo is a fork of the [Harmon Init](https://github.com/harmon-init/harmon-init) repo.
+This repo allows you to create a new project using the Harmon Init template which bootstraps numerous configurations and tools for you. Mainly, it is a streamlined way to bootstrap a lot of DevOps tools, CI/CD, linting, security checks, and a task runner.
 
 Author: Evan Harmon
 
