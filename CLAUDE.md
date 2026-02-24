@@ -4,13 +4,13 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Harmon Stack is a **Copier project template** that scaffolds new projects with pre-configured DevOps tooling, CI/CD pipelines, linting, security checks, and task runners. This is NOT an application — it is a template repository used to generate new projects via the [Copier](https://copier.readthedocs.io/en/stable/) templating tool.
+Harmon Init is a **Copier project template** that scaffolds new projects with pre-configured DevOps tooling, CI/CD pipelines, linting, security checks, and task runners. This is NOT an application — it is a template repository used to generate new projects via the [Copier](https://copier.readthedocs.io/en/stable/) templating tool.
 
 ## Common Commands
 
 ```bash
 # Generate a new project from this template
-copier copy harmon-stack new-project --trust
+copier copy harmon-init new-project --trust
 
 # Validate (runs pre-commit hooks)
 task validate
@@ -40,7 +40,7 @@ This repo has two layers that mirror each other:
 ### Key Files
 
 - **`copier.yml`** — Template configuration: defines all questions/variables presented during project creation, post-copy tasks (`_tasks`), and Copier settings. Variables with `when: false` are hidden from the user and use defaults.
-- **`template/`** — Everything in here becomes the generated project. Jinja2 conditionals in filenames control inclusion (e.g., `{% if docker %}docker{% endif %}/` — directory only created if user answers yes to docker).
+- **`template/`** — Everything in here becomes the generated project. Jinja2 conditionals in filenames control inclusion (e.g., `{% if devcontainer %}.devcontainer{% endif %}/`, `{% if github_collaboration_templates %}ISSUE_TEMPLATE{% endif %}/`).
 - **`Taskfile.yml`** — Task runner commands for this repo (validate, security, versioning).
 - **`check_for_pattern.sh`** — Bash script for detecting secret files during security scans.
 
@@ -62,3 +62,6 @@ This repo has two layers that mirror each other:
 - Indentation: 2 spaces for JS/TS/JSON/CSS/HTML/YAML/Markdown; 4 spaces for Python/Dockerfile/Bash (see `.editorconfig`).
 - Python formatted with Black; JS/TS with Prettier + ESLint.
 - Shell scripts linted with ShellCheck (excludes SC3037, SC2148).
+- YAML linted with yamllint; Ansible linted with ansible-lint.
+- Terraform formatted/checked via pre-commit-terraform (terraform_fmt, terraform_docs, terraform_checkov, infracost_breakdown).
+- pre-commit.ci integration enabled (autofix PRs, weekly autoupdate).
