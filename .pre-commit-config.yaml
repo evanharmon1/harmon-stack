@@ -48,7 +48,6 @@ repos:
     rev: v1.35.1
     hooks:
       - id: yamllint
-        language_version: python3.9
   - repo: https://github.com/ansible/ansible-lint
     rev: v26.3.0
     hooks:
