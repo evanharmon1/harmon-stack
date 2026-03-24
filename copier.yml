@@ -253,8 +253,8 @@ _tasks:
   - command: echo "*******************************************************************"
   - command: echo "******************** STARTING TASKS SECTION ***********************"
   - command: echo "*******************************************************************"
-  - command: "echo '_bunches_directory is set to: {{ _bunches_directory }}'"
-  - command: "echo '_obsidian_directory is set to: {{ _obsidian_directory }}'"
+  - command: "echo 'bunches_directory is set to: {{ bunches_directory }}'"
+  - command: "echo 'obsidian_directory is set to: {{ obsidian_directory }}'"
   - command: git init
     when: "{{ git_init }}"
   - command: gh repo create
