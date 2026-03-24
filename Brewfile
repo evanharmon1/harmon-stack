@@ -1,3 +1,4 @@
+brew "copier"
 brew "pre-commit"
 brew "go-task"
 cask "visual-studio-code"

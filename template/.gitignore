@@ -54,11 +54,35 @@ Thumbs.db
 
 .meta
 todo.md
+.act-secrets
 *.code-workspace
 .dccache
 
+settings.local.json
+
+# Terraform
+.terraform/
+*.tfplan
+
+# Ansible
+ansible/*.retry
+
+# Taskfile fingerprint cache
+.task/
+
+# Git Worktrees
+.worktrees
+.dmux
+.dmux-hooks
+.aoe
+
+.dmux
+.aoe
+
 #             .env
 #------------------------------------------------------------------------------
+# Devcontainer env files (injected by 1Password locally, not committed)
+.devcontainer/**/devcontainer.env
 # Ignore all .env files
 .env
 # Ignore all .env files in any subdirectory
@@ -69,3 +93,5 @@ todo.md
 **/.env.*
 # Ignore any directory named .env
 .env/
+.dmux/
+.dmux-hooks/

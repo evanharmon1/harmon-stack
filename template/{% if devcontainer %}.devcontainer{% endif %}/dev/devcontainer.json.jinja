@@ -1,11 +1,11 @@
 {
-  "name": "AI Dev Container - {{ project_name }}",
+  "name": "Dev Container - {{ project_name }}",
   "image": "mcr.microsoft.com/devcontainers/base:ubuntu-24.04",
-  "initializeCommand": "test -f .devcontainer/devcontainer.env || touch .devcontainer/devcontainer.env",
+  "initializeCommand": "test -f .devcontainer/dev/devcontainer.env || touch .devcontainer/dev/devcontainer.env",
   "runArgs": [
     "--device=/dev/net/tun",
     "--env-file",
-    ".devcontainer/devcontainer.env"
+    ".devcontainer/dev/devcontainer.env"
   ],
   "features": {
     "ghcr.io/devcontainers/features/python:1": {
@@ -31,16 +31,11 @@
     "source=codex-config-${devcontainerId},target=/home/vscode/.codex,type=volume",
     "source=gemini-config-${devcontainerId},target=/home/vscode/.gemini,type=volume"
   ],
-  "containerEnv": {
-    "TS_AUTHKEY": "${localEnv:TS_AUTHKEY}",
-    "CODER": "${localEnv:CODER}",
-    "GH_TOKEN": "${localEnv:GH_TOKEN}"
-  },
   "remoteEnv": {
     "ANSIBLE_CONFIG": "${containerWorkspaceFolder}/ansible/ansible.cfg"
   },
-  "postCreateCommand": "bash .devcontainer/post-create.sh",
-  "postStartCommand": "bash .devcontainer/post-start.sh",
+  "postCreateCommand": "bash .devcontainer/dev/post-create.sh",
+  "postStartCommand": "bash .devcontainer/dev/post-start.sh",
   "customizations": {
     "vscode": {
       "settings": {
