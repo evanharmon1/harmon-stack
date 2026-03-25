@@ -27,6 +27,15 @@ Before using for the first time you will probaby want to customize the copier.ym
    After initial questions, GitHub will ask questions about creating the repo on GitHub.
 5. Choose "Push an existing localy repository to GitHub" and choose the current path (.)
 
+### Updating the Template
+
+Copier generates projects from git tags, not from the working tree. After merging changes to the template, you must create a new tag for `copier copy` to pick them up. The `release.yml` GitHub Action does this automatically on push to main, but if you're testing locally:
+
+- Use `--vcs-ref HEAD` to include uncommitted changes: `copier copy harmon-init new-project --trust --vcs-ref HEAD`
+- Or create a new tag after committing: `git tag v1.2.3 && git push --tags`
+
+Without this, `copier copy` will keep using the last tagged version and your changes won't appear in generated projects.
+
 ## Setup & Installation
 
 ### Requirements
