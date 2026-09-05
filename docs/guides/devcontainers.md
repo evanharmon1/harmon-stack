@@ -137,9 +137,19 @@ human login; the pinned CLI falls back to file-backed credentials when the
 headless container has no D-Bus keyring, and the `~/.gemini` named volume
 persists the login across rebuilds. A checksum-verified compatibility installer
 (`config/ensure-antigravity-cli.sh`) covers the interval before the shared-image
-pin advances, then becomes a network-free no-op; it installs the pinned binary
-at `~/.local/bin/agy-real` (never `agy` itself, which is always either the
-bot's wrapper or a plain symlink to `agy-real`) and is gated on the rendered
+pin advances: `agy` is repointed to `~/.local/bin/agy-real` as a plain
+symlink whenever an executable local copy exists — already at the
+pinned version, or replaced from a matching system binary when it
+wasn't. Once the image ships the pinned version directly, with no local
+copy needed, it becomes a network-free no-op, leaving both files absent
+on a fresh volume so `agy` resolves straight to the system binary; only
+if something already occupies `agy` at that exact point (a stale
+symlink, most plausibly, left by an out-of-band change) is it left
+exactly as found instead — the bot-autonomy spec's state (d), tracked at
+https://github.com/evanharmon1/harmon-init/issues/1171 until reconciled.
+Either way, the bot's `apply` still
+installs its flag-injecting wrapper over whatever this installer
+leaves. It is gated on the rendered
 `containerEnv.HARMON_BOT_AUTONOMY_ANTIGRAVITY` marker — the Copier answer
 turned off leaves both files absent rather than downloading anything. The
 settings helper backs up the six policy keys it owns and tracks its
