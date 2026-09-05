@@ -162,15 +162,15 @@
 
 ## 8. Full verification sweep
 
-- [ ] 8.1 Run `task spec:validate`, `task check`, `task verify`, and
+- [x] 8.1 Run `task spec:validate`, `task check`, `task verify`, and
       `task security`; all green.
-- [ ] 8.2 Run `actionlint` directly against both the root and rendered
+- [x] 8.2 Run `actionlint` directly against both the root and rendered
       template workflow to confirm no expression/shell errors (already
       covered by `task check` and `task test:template`, run standalone if
       either flags something to isolate it faster).
-- [ ] 8.3 Confirm `task test:dogfood-parity` and `task test:dogfood-structure`
+- [x] 8.3 Confirm `task test:dogfood-parity` and `task test:dogfood-structure`
       are green after every file above is edited.
-- [ ] 8.4 Re-run the issue's own verify commands
+- [x] 8.4 Re-run the issue's own verify commands
       (`grep -n 'if: always()\|merge_group\|paths:' .github/workflows/devcontainer-build.yml`
       and the `jq` ruleset query) and confirm they show the always-on
       aggregator and merge_group trigger, and that both ruleset layers list
