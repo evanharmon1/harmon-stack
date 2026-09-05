@@ -426,16 +426,21 @@ its branch to a same-repository branch and opening a throwaway pull request
 against `main` — never merge it, and never use `pull_request_target`
 instead.
 
-On a `merge_group` event, `devcontainer-verify` still requires the `build`
-job to succeed — it validates that the devcontainer image builds — but that
-job never authenticates to the registry there (no login, no explicit
-cache-from, no push — no credential is presented, whether or not the build
-tooling's own fallback still attempts an anonymous read), because GitHub
-does not expose the queued PR's fork-vs-same-repo
-origin on `merge_group` the way it does on `pull_request`. The credentialed
+On a `merge_group` event, `devcontainer-verify` still requires
+`build-merge-group` to succeed — it validates that the devcontainer image
+builds. That job is dedicated to this one event and declares only
+`permissions: {contents: read}` — no `packages` scope at all, not merely an
+unused one, and no `docker/login-action` step under any condition. GitHub
+resolves a job's token from its own `permissions:` block before any step
+runs, so even a maliciously-edited copy of this job cannot authenticate to
+the registry: a runtime guard living in the same file a queued change can
+edit would not have been a real credential boundary, since `merge_group`
+runs the workflow definition from the queued candidate tree itself, and
+GitHub does not expose that pull request's fork-vs-same-repo origin on
+`merge_group` the way it does on `pull_request`. The credentialed
 `devcontainer-assert-bot` job (it starts a real container and needs a
 registry login for its cache, which is a static field in
-`.devcontainer/devcontainer.json` this workflow cannot condition per event)
+`.devcontainer/devcontainer.json` this workflow cannot condition per job)
 stands down entirely on `merge_group` instead, and `devcontainer-verify`
 treats that skip as the expected, passing outcome.
 [% endif %]

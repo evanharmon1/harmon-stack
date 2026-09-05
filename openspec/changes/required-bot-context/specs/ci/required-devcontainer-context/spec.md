@@ -93,12 +93,16 @@ merged.
   using `pull_request_target`
 
 ### Requirement: Merge-group runs a credential-free container validation
-A `merge_group` event SHALL run a devcontainer container validation that
-never authenticates to the container registry, because GitHub does not
-expose whether the queued pull request originated from a fork on that
-event. The bot-autonomy container assertion, which cannot be made
-credential-free without disabling its registry cache, SHALL NOT run on
-`merge_group`.
+A `merge_group` event SHALL run a devcontainer container validation whose
+job holds no registry-write-capable token, because GitHub does not expose
+whether the queued pull request originated from a fork on that event, and
+that event runs the workflow definition from the queued candidate tree
+itself — so a runtime guard living in the same file a queued change can
+edit is not a credential boundary. The validation job's own
+`permissions:` SHALL grant no `packages` scope, so the boundary holds
+regardless of what that job's own steps do. The bot-autonomy container
+assertion, which cannot be made credential-free without disabling its
+registry cache, SHALL NOT run on `merge_group`.
 
 #### Scenario: a merge-group build never authenticates to the registry
 - **WHEN** a `merge_group` event triggers `devcontainer-build.yml` for a
@@ -106,6 +110,13 @@ credential-free without disabling its registry cache, SHALL NOT run on
 - **THEN** the devcontainer image build runs to completion without any step
   logging in to the container registry, and `devcontainer-verify` requires
   that build to succeed
+
+#### Scenario: the merge-group validation job cannot hold a write-capable token
+- **WHEN** the devcontainer image build job that runs on a `merge_group`
+  event is inspected
+- **THEN** its declared `permissions:` grant no `packages` scope at all —
+  not merely omit a login step — so the job's own token cannot authenticate
+  to the registry even if its steps tried to
 
 #### Scenario: the bot-autonomy assertion stands down on merge-group
 - **WHEN** a `merge_group` event triggers `devcontainer-build.yml`

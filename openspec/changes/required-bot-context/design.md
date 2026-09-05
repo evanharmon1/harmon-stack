@@ -65,18 +65,40 @@ because:
   detector's job is only to skip an expensive build, not to gate a release
   decision the way `require-release-title.sh` does.
 
-**`build` goes credential-free on `merge_group`; `devcontainer-assert-bot`
-stands down entirely.** `build`'s registry use is two independent, droppable
-things (a cache pull via `devcontainers/ci`'s `cacheFrom` input, and a push
-gated to `event_name == 'push'` already) — both are workflow-level inputs
-this design can blank out with a plain expression. `devcontainer-assert-bot`
-uses the `devcontainer` CLI (`scripts/devcontainer-smoke.sh`), which reads
-its cache source from the static `cacheFrom` field in
-`.devcontainer/devcontainer.json` — not a workflow expression — so there is
-no equivalent lever to blank it per-event without templating that JSON file
-by CI event, which would make it diverge from what a human or bot actually
-runs locally. Standing the job down is the same trade-off
-`terraform-plan-apply` already makes for the same reason.
+**`merge_group` gets its own `build-merge-group` job with a statically
+narrower `permissions:` block, rather than a runtime skip inside `build`.**
+An earlier version of this design kept one `build` job and had it skip
+`docker/login-action` (and blank `cacheFrom`) when
+`github.event_name == 'merge_group'`. That is not a real credential
+boundary: `merge_group` runs the workflow definition from the **queued
+candidate tree**, which includes the very changes being evaluated, so a PR
+that also edits this file can simply delete that runtime guard (or add a
+credential-reading step directly) and use the job's token — which still
+carries `packages: write`, declared statically for the push case — without
+ever calling the now-absent login step. `permissions:` is the one thing in
+this file such an edit cannot silently repurpose: GitHub mints the job's
+token from that block before any step, trusted or attacker-added, executes,
+and a diff that widens it back to `packages: write` is exactly the
+conspicuous, reviewable change `require_code_owner_review` exists to catch
+(every file, workflows included, requires this repository's one CODEOWNERS
+reviewer). `build-merge-group` therefore declares only
+`permissions: {contents: read}` — no `packages` key at all, hence no scope
+to authenticate with regardless of what its steps try — and carries no
+`docker/login-action` step under any condition, not merely a skipped one.
+`build` keeps `packages: write` for the push case it still needs, and now
+excludes `merge_group` outright via its own `if:`, mirroring how
+`devcontainer-assert-bot` already excludes it.
+
+**`devcontainer-assert-bot` stands down entirely on `merge_group`, with no
+low-privilege sibling of its own.** Unlike `build`, its registry use is not
+a workflow-level input this design can move to a separate job's cache
+config: it uses the `devcontainer` CLI (`scripts/devcontainer-smoke.sh`),
+which reads its cache source from the static `cacheFrom` field in
+`.devcontainer/devcontainer.json` — not a workflow expression, and shared
+with every human and bot devcontainer session, so it cannot be templated
+per CI event without diverging from what everyone else actually runs.
+Standing the job down is the same trade-off `terraform-plan-apply` already
+makes for the same reason.
 
 **Centralize verification in the aggregator; delete the leaf jobs' own
 self-checks.** Today's `devcontainer-assert-bot` has its own internal
@@ -92,6 +114,14 @@ did or did not run.
   (because the whole workflow didn't run) blocks that PR's merge forever —
   the exact failure mode `terraform-verify`'s comment already names and this
   change exists to avoid for devcontainer-build.yml too.
+- *A single `build` job that skips `docker/login-action` and blanks
+  `cacheFrom` at runtime when `github.event_name == 'merge_group'`.* This
+  was the change's first draft, confirmed wrong in challenge round 1
+  (2026-09-05): the job still declared `packages: write` unconditionally, so
+  the "credential-free" property depended entirely on a same-file runtime
+  guard a queued, workflow-file-editing PR can simply not include in its own
+  submitted copy. Superseded by the `build-merge-group` split above, which
+  moves the boundary to a place a same-file edit cannot reach.
 - *Make `devcontainer-assert-bot` credential-free on `merge_group` by
   passing an empty `cacheFrom` via an `--override-config` or a generated
   devcontainer.json variant.* Rejected as unnecessary complexity for a path
@@ -108,10 +138,18 @@ did or did not run.
   repository already bounds it for `verify`/`security`: required-reviewer +
   code-owner approval is the actual gate for fork content, not the
   automated check alone.
-- **`build` on `merge_group` builds without its registry cache, so it is
-  slower than a same-repo PR's build** → acceptable; `merge_group` runs are
-  far less frequent than PR pushes, and correctness (never authenticating to
-  the registry with queued content) outweighs build speed here.
+- **`build-merge-group` builds without any registry cache, so it is slower
+  than a same-repo PR's `build`** → acceptable; `merge_group` runs are far
+  less frequent than PR pushes, and correctness (a token with no `packages`
+  scope at all, not merely an unused one) outweighs build speed here.
+- **Duplicated job steps between `build` and `build-merge-group`** (matrix,
+  checkout, buildx setup, the build step, cleanup) → accepted: GitHub
+  Actions has no in-file mechanism to share a job body across two different
+  static `permissions:` blocks, and a `workflow_call` split would be a much
+  larger restructuring for a two-job duplication. A future change to the
+  shared build steps must be applied to both jobs; `task audit:dogfood`'s
+  root/template diff and code review are what catch that, the same way they
+  already catch drift elsewhere in this file.
 - **The push/workflow_dispatch "always changed" reconciliation means every
   merge to `main` rebuilds the devcontainer image cache, even for an
   unrelated change** → same trade-off `terraform.yml` already accepts for

@@ -333,19 +333,29 @@ maintainer chose to trust.
 Organizations using the merge queue produce a `merge_group` event when a
 pull request — including one originally opened from a fork — is queued to
 merge. GitHub does not expose that pull request's fork-vs-same-repository
-origin on a `merge_group` event the way it does on `pull_request`, so
-`devcontainer-build.yml`'s `build` job never authenticates to the container
-registry there: no `docker/login-action`, no explicit cache-from, no push
-(already gated to `push` events only) — it presents no credential to the
-registry at all, whether or not the underlying build tooling's own fallback
-still attempts an anonymous read. `build` still runs and must still succeed —
-it validates that the devcontainer image builds — but `devcontainer-verify`
-does not expect `devcontainer-assert-bot` to run on `merge_group` at all:
-its registry cache is a static field in `.devcontainer/devcontainer.json`,
-not a workflow expression this repository can condition per event, so
-rather than risk a partial credential-free path, that job stands down
-entirely and `devcontainer-verify` treats the skip as the expected, passing
-outcome.
+origin on a `merge_group` event the way it does on `pull_request`, **and**
+that event runs the workflow definition from the queued candidate tree
+itself, so a runtime `if:` guard inside `devcontainer-build.yml` is not a
+credential boundary: a pull request that also edits this file could simply
+not include that guard in its own submitted copy.
+
+The boundary that holds regardless is `permissions:`, which GitHub resolves
+into the job's token before any step — trusted or attacker-added — runs.
+`build-merge-group` is a dedicated job for this one event, declaring only
+`permissions: {contents: read}` — no `packages` scope at all, not merely an
+unused one — with no `docker/login-action` step under any condition. Even a
+maliciously-edited copy of this job cannot authenticate to the registry,
+because the token it is issued has no scope to do so. Widening that block
+back to `packages: write` is exactly the conspicuous, reviewable diff
+`require_code_owner_review` exists to catch (this repository's CODEOWNERS
+covers every file, workflows included). `build-merge-group` still runs and
+must still succeed — it validates that the devcontainer image builds — but
+`devcontainer-verify` does not expect `devcontainer-assert-bot` to run on
+`merge_group` at all: its registry cache is a static field in
+`.devcontainer/devcontainer.json`, not a workflow expression this repository
+can condition per job, so rather than risk a partial credential-free path,
+that job stands down entirely and `devcontainer-verify` treats the skip as
+the expected, passing outcome.
 
 ## What the AI Agent Can and Cannot Do
 

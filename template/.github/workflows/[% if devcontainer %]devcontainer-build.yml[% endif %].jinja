@@ -74,8 +74,19 @@ jobs:
     # Runner switch: CI_RUNS_ON repo/org variable unset -> the rendered
     # default; set it to a JSON runner spec to override without a commit.
     runs-on: ${{ fromJSON(vars.CI_RUNS_ON || '[[ ci_runs_on_default ]]') }}
+    # merge_group is excluded outright, not merely skipped internally: this
+    # job's token holds `packages: write` (needed for the push case below),
+    # and a job-level `if:`/`env:` guard lives INSIDE the same file a queued
+    # change can edit — GitHub runs a merge_group event's OWN copy of this
+    # workflow, so a PR that also edits this file could simply delete the
+    # guard and use the write-capable token directly. Excluding the event
+    # from this job entirely moves the boundary to something a same-file
+    # edit cannot reach: which job runs, and that job's OWN, separately
+    # declared (and far more conspicuous to change) permissions block. See
+    # build-merge-group below and docs/architecture/branch-protection.md.
     if: >-
       needs.devcontainer-changes.outputs.changed == 'true' &&
+      github.event_name != 'merge_group' &&
       (github.event_name != 'pull_request' ||
        github.event.pull_request.head.repo.full_name == github.repository)
     timeout-minutes: 45
@@ -105,14 +116,7 @@ jobs:
           buildkitd-config-inline: |
             [worker.oci]
               networkMode = "host"
-      # merge_group queues a batch that can carry fork-authored content —
-      # GitHub does not expose the queued PR's fork-vs-same-repo origin on
-      # this event, unlike `pull_request` — so this run never authenticates
-      # to the registry: no login, no explicit cache-from (blanked below), no push
-      # (already gated to `push` only). See docs/architecture/branch-
-      # protection.md.
-      - if: github.event_name != 'merge_group'
-        uses: docker/login-action@650006c6eb7dba73a995cc03b0b2d7f5ca915bee # v4.2.0
+      - uses: docker/login-action@650006c6eb7dba73a995cc03b0b2d7f5ca915bee # v4.2.0
         with:
           registry: ghcr.io
           username: ${{ github.repository_owner }}
@@ -143,16 +147,83 @@ jobs:
           # never produced cache hits. The action auto-adds the image name as
           # a fallback cacheFrom, so only the -cache ref is listed here.
           # Cache is only written on pushes to main, never from PR builds.
-          # Blanked on merge_group: this ref (and the image itself, the
-          # action's own fallback) happen to be public packages today, but
-          # this run never authenticates regardless of that visibility
-          # setting, which a maintainer could change independently of this
-          # workflow — never depend on it staying true.
-          cacheFrom: ${{ github.event_name != 'merge_group' && format('type=registry,ref={0}-cache', matrix.image_name) || '' }}
+          cacheFrom: type=registry,ref=${{ matrix.image_name }}-cache
           cacheTo: ${{ github.event_name == 'push' && format('type=registry,ref={0}-cache,mode=max', matrix.image_name) || '' }}
           configFile: ${{ matrix.config_file }}
           imageName: ${{ matrix.image_name }}
           push: ${{ github.event_name == 'push' && 'always' || 'never' }}
+      - name: Clean up buildx cache and dangling images
+        if: always()
+        continue-on-error: true
+        run: |
+          docker buildx prune --force --keep-storage 20GB
+          docker image prune --force
+
+  # Handles ONLY merge_group. A separate job, not a same-repo/merge_group
+  # branch inside `build` above, on purpose: `permissions:` is the one thing
+  # in this file a same-file edit cannot quietly repurpose at runtime — the
+  # token GitHub issues for this job is minted from this block BEFORE any
+  # step (trusted or attacker-added) runs, and a diff that widens it back to
+  # `packages: write` is exactly the conspicuous, reviewable change
+  # `require_code_owner_review` exists to catch (see docs/architecture/
+  # branch-protection.md). No login step exists here at all — not merely a
+  # skipped one — and no packages permission is declared, so even a
+  # maliciously-edited copy of this job cannot authenticate to the registry
+  # regardless of what its own steps try to do.
+  build-merge-group:
+    needs: [devcontainer-changes]
+    runs-on: ${{ fromJSON(vars.CI_RUNS_ON || '[[ ci_runs_on_default ]]') }}
+    if: >-
+      needs.devcontainer-changes.outputs.changed == 'true' &&
+      github.event_name == 'merge_group'
+    timeout-minutes: 45
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: ai
+            config_file: .devcontainer/devcontainer.json
+            image_name: [[ devcontainer_image ]]
+          - name: dev
+            config_file: .devcontainer/dev/devcontainer.json
+            image_name: [[ devcontainer_image ]]-dev
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          # renovate: datasource=node-version depName=node
+          node-version: "24"
+      - uses: docker/setup-buildx-action@d7f5e7f509e45cec5c76c4d5afdd7de93d0b3df5 # v4
+        with:
+          buildkitd-config-inline: |
+            [worker.oci]
+              networkMode = "host"
+      - name: Free up runner disk space
+        if: runner.environment == 'github-hosted'
+        run: |
+          sudo rm -rf /usr/local/lib/android /usr/share/dotnet /opt/ghc /usr/share/swift
+          sudo docker image prune --all --force || true
+          df -h /
+      - name: Build ${{ matrix.name }} devcontainer
+        uses: devcontainers/ci@513af61f4de4f75d37e4438f184ba4358f0fc1ca # v0.3
+        env:
+          CODER: ""
+          GH_TOKEN: ""
+          TS_AUTHKEY: ""
+        with:
+          # No cacheFrom: this job's token has no packages scope at all (not
+          # even read), so an authenticated pull is impossible regardless —
+          # and never blank-then-anonymous-pull the -cache ref either,
+          # independent of whether that ref happens to be public today (see
+          # `build`'s own cache comment above for why that isn't load-bearing
+          # here). A cache miss just means a slower, still-correct build.
+          configFile: ${{ matrix.config_file }}
+          imageName: ${{ matrix.image_name }}
+          push: never
       - name: Clean up buildx cache and dangling images
         if: always()
         continue-on-error: true
@@ -178,12 +249,12 @@ jobs:
     # event, where `github.event_name != 'pull_request'` is true and the fork
     # check below would wave it through — handing this job's registry login
     # to fork-authored content before it ever lands on main. Unlike `build`,
-    # this job cannot go credential-free instead: its cache source is
-    # `.devcontainer/devcontainer.json`'s static `cacheFrom` field, read by
-    # the devcontainer CLI, not a workflow expression this file can condition
-    # per event. `build` still validates the image on merge_group; only the
-    # credentialed container assertion stands down. See
-    # docs/architecture/branch-protection.md.
+    # this job cannot get its own low-privilege merge_group sibling: its
+    # cache source is `.devcontainer/devcontainer.json`'s static `cacheFrom`
+    # field, read by the devcontainer CLI, not a workflow expression this
+    # file can condition per job. `build-merge-group` still validates the
+    # image on merge_group; only the credentialed container assertion stands
+    # down. See docs/architecture/branch-protection.md.
     if: >-
       needs.devcontainer-changes.outputs.changed == 'true' &&
       github.event_name != 'merge_group' &&
@@ -224,13 +295,14 @@ jobs:
     # event — including the unrelated-path runs that used to be filtered
     # away, which is what lets it be required at all.
     if: always()
-    needs: [devcontainer-changes, build, devcontainer-assert-bot]
+    needs: [devcontainer-changes, build, build-merge-group, devcontainer-assert-bot]
     runs-on: ${{ fromJSON(vars.CI_RUNS_ON || '[[ ci_runs_on_default ]]') }}
     env:
       IS_FORK: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository }}
       CHANGED: ${{ needs.devcontainer-changes.outputs.changed }}
       CHANGES_RESULT: ${{ needs.devcontainer-changes.result }}
       BUILD_RESULT: ${{ needs.build.result }}
+      BUILD_MERGE_GROUP_RESULT: ${{ needs.build-merge-group.result }}
       ASSERT_RESULT: ${{ needs.devcontainer-assert-bot.result }}
     steps:
       # Never check out or run fork-controlled repository code on this path.
@@ -246,6 +318,7 @@ jobs:
           }
           check_skipped devcontainer-changes "$CHANGES_RESULT"
           check_skipped build "$BUILD_RESULT"
+          check_skipped build-merge-group "$BUILD_MERGE_GROUP_RESULT"
           check_skipped devcontainer-assert-bot "$ASSERT_RESULT"
           if [ "$fail" -ne 0 ]; then
             exit 1
@@ -272,13 +345,25 @@ jobs:
         run: |
           ./scripts/verify-ci-results.sh \
             "build=${BUILD_RESULT}" \
+            "build-merge-group=${BUILD_MERGE_GROUP_RESULT}" \
             "devcontainer-assert-bot=${ASSERT_RESULT}"
           echo "No devcontainer-relevant changes in this range — the build and assertion jobs were deliberately skipped."
-      - name: Verify the build succeeded
-        if: env.IS_FORK != 'true' && env.CHANGED != 'false'
+      # build and build-merge-group are mutually exclusive by event (never
+      # both applicable), so exactly one of these two steps' checks runs.
+      - name: Verify the build succeeded (non-merge_group)
+        if: env.IS_FORK != 'true' && env.CHANGED != 'false' && github.event_name != 'merge_group'
         env:
           EXPECTED_RESULT: success
-        run: ./scripts/verify-ci-results.sh "build=${BUILD_RESULT}"
+        run: |
+          ./scripts/verify-ci-results.sh "build=${BUILD_RESULT}"
+          EXPECTED_RESULT=skipped ./scripts/verify-ci-results.sh "build-merge-group=${BUILD_MERGE_GROUP_RESULT}"
+      - name: Verify the credential-free merge-group build succeeded
+        if: env.IS_FORK != 'true' && env.CHANGED != 'false' && github.event_name == 'merge_group'
+        env:
+          EXPECTED_RESULT: success
+        run: |
+          ./scripts/verify-ci-results.sh "build-merge-group=${BUILD_MERGE_GROUP_RESULT}"
+          EXPECTED_RESULT=skipped ./scripts/verify-ci-results.sh "build=${BUILD_RESULT}"
       # The bot-autonomy container assertion is legitimately absent on
       # merge_group — the credentialed half stands down at the fork trust
       # boundary there (see devcontainer-assert-bot above). Its expected
