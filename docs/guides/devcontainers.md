@@ -145,8 +145,9 @@ copy needed, it becomes a network-free no-op, leaving both files absent
 on a fresh volume so `agy` resolves straight to the system binary; only
 if something already occupies `agy` at that exact point (a stale
 symlink, most plausibly, left by an out-of-band change) is it left
-exactly as found instead — the bot-autonomy spec's state (d), tracked by
-issue #1171 until reconciled. Either way, the bot's `apply` still
+exactly as found instead — the bot-autonomy spec's state (d), tracked at
+https://github.com/evanharmon1/harmon-init/issues/1171 until reconciled.
+Either way, the bot's `apply` still
 installs its flag-injecting wrapper over whatever this installer
 leaves. It is gated on the rendered
 `containerEnv.HARMON_BOT_AUTONOMY_ANTIGRAVITY` marker — the Copier answer

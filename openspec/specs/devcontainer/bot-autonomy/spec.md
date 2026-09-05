@@ -418,19 +418,24 @@ passing against the stale copy.
 autonomy wrapper — present only in the bot profile when
 `containerEnv.HARMON_BOT_AUTONOMY_ANTIGRAVITY` reads `enabled` — that
 delegates to `~/.local/bin/agy-real` when present and executable, else
-the system binary at `/usr/local/bin/agy`; **(b)** a plain symlink to
-`agy-real`, present only when `agy-real` itself exists; **(c)** absent;
-or **(d)** unreconciled: whatever pre-existed at `~/.local/bin/agy` — a
-regular file, a wrapper, or a dangling symlink — when
+the system binary at `/usr/local/bin/agy`; **(b)** a plain symlink to an
+**executable** `agy-real`, present only when `agy-real` both exists and
+is executable; **(c)** absent; or **(d)** unreconciled: whatever
+pre-existed at `~/.local/bin/agy` — a regular file, a wrapper, or any
+symlink regardless of whether its target exists or is executable
+(including one pointing at an `agy-real` that exists but is no longer
+executable, which state (b) excludes by requiring executability) — when
 `ensure-antigravity-cli.sh` takes its system-binary-sufficient early
 return: the pinned system binary is present on `PATH` and no executable
 local `agy-real` copy exists (`[ -x "$real_bin" ]` false), so that path
 never touches `agy` at all. This precondition is stated here once; every
 other reference to state (d) below points back to it rather than
-restating it. States (a)-(c) SHALL NOT be a dangling symlink (a symlink
-whose target does not exist); state (d) is the one documented exception
-where that invariant can be violated, tracked by #1171 until
-reconciled.
+restating it. These four states are mutually exclusive by construction:
+(b) and (d) cannot both hold for the same symlink because (b) requires
+`agy-real` executable and (d)'s precondition requires it not executable.
+States (a)-(c) SHALL NOT be a dangling symlink (a symlink whose target
+does not exist); state (d) is the one documented exception where that
+invariant can be violated, tracked by #1171 until reconciled.
 `HARMON_BOT_AUTONOMY_ANTIGRAVITY` SHALL be set by the **rendered**
 `devcontainer.json` (bot) and `dev/devcontainer.json` — both
 `[% if devcontainer %]`-conditional jinja twins — from
