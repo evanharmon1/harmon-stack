@@ -108,7 +108,7 @@ jobs:
       # merge_group queues a batch that can carry fork-authored content —
       # GitHub does not expose the queued PR's fork-vs-same-repo origin on
       # this event, unlike `pull_request` — so this run never authenticates
-      # to the registry: no login, no cache pull (blanked below), no push
+      # to the registry: no login, no explicit cache-from (blanked below), no push
       # (already gated to `push` only). See docs/architecture/branch-
       # protection.md.
       - if: github.event_name != 'merge_group'
