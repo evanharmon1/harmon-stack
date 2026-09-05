@@ -1,23 +1,20 @@
 name: Devcontainer Build
 run-name: ${{ github.actor }} is ${{ github.event_name == 'push' && 'prebuilding' || 'testing' }} devcontainers
 
+# NOTE the deliberate absence of top-level `paths:` filters. `devcontainer-
+# verify` is a REQUIRED status check, and a path-filtered workflow simply
+# never reports on an unrelated PR — a required check that never reports
+# blocks the merge forever. So this always runs and decides internally:
+# `devcontainer-changes` makes an unrelated PR a cheap, explicit no-op that
+# still reports (see docs/architecture/branch-protection.md).
 on:
   push:
     branches:
       - main
-    paths:
-      - ".devcontainer/**"
-      - ".github/workflows/devcontainer-build.yml"
-      - "scripts/verify-ci-results.sh"
-      - "scripts/devcontainer-assert.sh"
-      - "scripts/devcontainer-smoke.sh"
   pull_request:
-    paths:
-      - ".devcontainer/**"
-      - ".github/workflows/devcontainer-build.yml"
-      - "scripts/verify-ci-results.sh"
-      - "scripts/devcontainer-assert.sh"
-      - "scripts/devcontainer-smoke.sh"
+    branches:
+      - main
+  merge_group:
   workflow_dispatch:
 
 concurrency:
@@ -25,13 +22,62 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
+  devcontainer-changes:
+    # Skipped for untrusted forks along with every other repository-controlled
+    # job below. `actions/checkout` on a fork PR fetches the CONTRIBUTOR's
+    # version of scripts/devcontainer-changed.sh, so running it here would
+    # execute untrusted shell on the runner — and let that shell dictate the
+    # `changed` output the jobs below branch on. Forks need no answer:
+    # everything downstream is already skipped for them, and
+    # devcontainer-verify asserts exactly that.
+    if: >-
+      github.event_name != 'pull_request' ||
+      github.event.pull_request.head.repo.full_name == github.repository
+    # Runner switch: CI_RUNS_ON repo/org variable unset -> the rendered
+    # default; set it to a JSON runner spec to override without a commit.
+    runs-on: ${{ fromJSON(vars.CI_RUNS_ON || '[[ ci_runs_on_default ]]') }}
+    timeout-minutes: 5
+    outputs:
+      changed: ${{ steps.detect.outputs.changed }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          # Both endpoints of the comparison must be present locally; a
+          # shallow clone would make the detector fail safe to "changed" on
+          # every run.
+          fetch-depth: 0
+      - name: Detect devcontainer changes
+        id: detect
+        env:
+          # push and workflow_dispatch deliberately pass NO range: a push has
+          # no natural range that is safe here (the concurrency group above
+          # cancels a superseded PR run but not a superseded push, and an
+          # incremental before..after can be stepped over the same way
+          # terraform.yml's own change detector documents for its push
+          # trigger), and workflow_dispatch has no range at all. Both
+          # reconcile instead — the cost is a rebuild on an unrelated merge to
+          # main. pull_request and merge_group are compared endpoint-to-
+          # endpoint from the event payload.
+          BASE_SHA: >-
+            ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha
+            || github.event_name == 'merge_group' && github.event.merge_group.base_sha
+            || '' }}
+          HEAD_SHA: >-
+            ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha
+            || github.event_name == 'merge_group' && github.event.merge_group.head_sha
+            || github.sha }}
+        run: ./scripts/devcontainer-changed.sh "$BASE_SHA" "$HEAD_SHA"
+
   build:
+    needs: [devcontainer-changes]
     # Runner switch: CI_RUNS_ON repo/org variable unset -> the rendered
     # default; set it to a JSON runner spec to override without a commit.
     runs-on: ${{ fromJSON(vars.CI_RUNS_ON || '[[ ci_runs_on_default ]]') }}
     if: >-
-      github.event_name != 'pull_request' ||
-      github.event.pull_request.head.repo.full_name == github.repository
+      needs.devcontainer-changes.outputs.changed == 'true' &&
+      (github.event_name != 'pull_request' ||
+       github.event.pull_request.head.repo.full_name == github.repository)
     timeout-minutes: 45
     permissions:
       contents: read
@@ -59,7 +105,14 @@ jobs:
           buildkitd-config-inline: |
             [worker.oci]
               networkMode = "host"
-      - uses: docker/login-action@650006c6eb7dba73a995cc03b0b2d7f5ca915bee # v4.2.0
+      # merge_group queues a batch that can carry fork-authored content —
+      # GitHub does not expose the queued PR's fork-vs-same-repo origin on
+      # this event, unlike `pull_request` — so this run never authenticates
+      # to the registry: no login, no cache pull (blanked below), no push
+      # (already gated to `push` only). See docs/architecture/branch-
+      # protection.md.
+      - if: github.event_name != 'merge_group'
+        uses: docker/login-action@650006c6eb7dba73a995cc03b0b2d7f5ca915bee # v4.2.0
         with:
           registry: ghcr.io
           username: ${{ github.repository_owner }}
@@ -90,7 +143,12 @@ jobs:
           # never produced cache hits. The action auto-adds the image name as
           # a fallback cacheFrom, so only the -cache ref is listed here.
           # Cache is only written on pushes to main, never from PR builds.
-          cacheFrom: type=registry,ref=${{ matrix.image_name }}-cache
+          # Blanked on merge_group: this ref (and the image itself, the
+          # action's own fallback) happen to be public packages today, but
+          # this run never authenticates regardless of that visibility
+          # setting, which a maintainer could change independently of this
+          # workflow — never depend on it staying true.
+          cacheFrom: ${{ github.event_name != 'merge_group' && format('type=registry,ref={0}-cache', matrix.image_name) || '' }}
           cacheTo: ${{ github.event_name == 'push' && format('type=registry,ref={0}-cache,mode=max', matrix.image_name) || '' }}
           configFile: ${{ matrix.config_file }}
           imageName: ${{ matrix.image_name }}
@@ -102,43 +160,11 @@ jobs:
           docker buildx prune --force --keep-storage 20GB
           docker image prune --force
 
-  devcontainer-verify:
-    if: always()
-    needs: [build]
-    # Runner switch: CI_RUNS_ON repo/org variable unset -> the rendered
-    # default; set it to a JSON runner spec to override without a commit.
-    runs-on: ${{ fromJSON(vars.CI_RUNS_ON || '[[ ci_runs_on_default ]]') }}
-    env:
-      IS_FORK: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository }}
-    steps:
-      # Never check out or run fork-controlled repository code on this path.
-      - name: Verify deliberate skip at the untrusted-fork boundary
-        if: env.IS_FORK == 'true'
-        env:
-          BUILD_RESULT: ${{ needs.build.result }}
-        run: |
-          if [ "$BUILD_RESULT" != "skipped" ]; then
-            echo "Job build result: $BUILD_RESULT (expected skipped for an untrusted fork)"
-            exit 1
-          fi
-          echo "Untrusted fork trust boundary enforced: the repository-controlled devcontainer build was deliberately skipped."
-      - if: env.IS_FORK != 'true'
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-      - name: Verify devcontainer build succeeded
-        if: env.IS_FORK != 'true'
-        env:
-          EXPECTED_RESULT: success
-          BUILD_RESULT: ${{ needs.build.result }}
-        run: ./scripts/verify-ci-results.sh "build=${BUILD_RESULT}"
-
   # Fail-closed proof for issue #1137: starts a real bot container and runs
   # bot-autonomy.sh verify inside it (via devcontainer-smoke.sh, which shares
   # this workflow's registry build cache, so this is a cache hit, not a full
   # rebuild), so every supported installed harness's effective policy is
-  # actually checked, not just its source files. Not a required
-  # branch-protection status check
+  # actually checked, not just its source files.
   # (https://github.com/evanharmon1/harmon-init/blob/main/openspec/changes/archive/2026-09-05-bot-autonomy-bootstrap/design.md -
   # Non-Goals): #1137's fail-closed guarantee is satisfied by
   # apply/verify failing container creation/start directly; this job adds a
@@ -146,8 +172,23 @@ jobs:
   # `task ci` mirror — see docs/architecture/ci-cd.md and AGENTS.md's
   # CI-only-infrastructure carve-out.
   devcontainer-assert-bot:
-    if: always()
-    needs: [build]
+    needs: [devcontainer-changes, build]
+    # merge_group is excluded deliberately, and it is a TRUST boundary, not a
+    # preference: a fork PR that a maintainer queues produces a merge_group
+    # event, where `github.event_name != 'pull_request'` is true and the fork
+    # check below would wave it through — handing this job's registry login
+    # to fork-authored content before it ever lands on main. Unlike `build`,
+    # this job cannot go credential-free instead: its cache source is
+    # `.devcontainer/devcontainer.json`'s static `cacheFrom` field, read by
+    # the devcontainer CLI, not a workflow expression this file can condition
+    # per event. `build` still validates the image on merge_group; only the
+    # credentialed container assertion stands down. See
+    # docs/architecture/branch-protection.md.
+    if: >-
+      needs.devcontainer-changes.outputs.changed == 'true' &&
+      github.event_name != 'merge_group' &&
+      (github.event_name != 'pull_request' ||
+       github.event.pull_request.head.repo.full_name == github.repository)
     runs-on: ${{ fromJSON(vars.CI_RUNS_ON || '[[ ci_runs_on_default ]]') }}
     # On a cache miss this job rebuilds independently of `build` (a separate
     # runner, so it cannot reuse that job's local result) and can take as
@@ -157,40 +198,94 @@ jobs:
     # this job gets killed before its own script's timeout ever has a
     # chance to fire and report the real cause.
     timeout-minutes: 60
-    env:
-      IS_FORK: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository }}
     steps:
-      # Never check out or run fork-controlled repository code on this path.
-      - name: Verify deliberate skip at the untrusted-fork boundary
-        if: env.IS_FORK == 'true'
-        env:
-          BUILD_RESULT: ${{ needs.build.result }}
-        run: |
-          if [ "$BUILD_RESULT" != "skipped" ]; then
-            echo "Job build result: $BUILD_RESULT (expected skipped for an untrusted fork)"
-            exit 1
-          fi
-          echo "Untrusted fork trust boundary enforced: the bot-autonomy container assertion was deliberately skipped."
-      - if: env.IS_FORK != 'true'
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - if: env.IS_FORK != 'true'
-        uses: docker/setup-buildx-action@d7f5e7f509e45cec5c76c4d5afdd7de93d0b3df5 # v4
+      - uses: docker/setup-buildx-action@d7f5e7f509e45cec5c76c4d5afdd7de93d0b3df5 # v4
         with:
           buildkitd-config-inline: |
             [worker.oci]
               networkMode = "host"
-      - if: env.IS_FORK != 'true'
-        uses: docker/login-action@650006c6eb7dba73a995cc03b0b2d7f5ca915bee # v4.2.0
+      - uses: docker/login-action@650006c6eb7dba73a995cc03b0b2d7f5ca915bee # v4.2.0
         with:
           registry: ghcr.io
           username: ${{ github.repository_owner }}
           password: ${{ secrets.GITHUB_TOKEN }}
       - name: Assert bot-autonomy fail-closed policy in a running bot container
-        if: env.IS_FORK != 'true'
         env:
           CODER: ""
           GH_TOKEN: ""
           TS_AUTHKEY: ""
         run: ./scripts/devcontainer-smoke.sh .devcontainer/devcontainer.json
+
+  devcontainer-verify:
+    # The REQUIRED status check. `if: always()` so it reports on every
+    # event — including the unrelated-path runs that used to be filtered
+    # away, which is what lets it be required at all.
+    if: always()
+    needs: [devcontainer-changes, build, devcontainer-assert-bot]
+    runs-on: ${{ fromJSON(vars.CI_RUNS_ON || '[[ ci_runs_on_default ]]') }}
+    env:
+      IS_FORK: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository }}
+      CHANGED: ${{ needs.devcontainer-changes.outputs.changed }}
+      CHANGES_RESULT: ${{ needs.devcontainer-changes.result }}
+      BUILD_RESULT: ${{ needs.build.result }}
+      ASSERT_RESULT: ${{ needs.devcontainer-assert-bot.result }}
+    steps:
+      # Never check out or run fork-controlled repository code on this path.
+      - name: Verify deliberate skips at the untrusted-fork boundary
+        if: env.IS_FORK == 'true'
+        run: |
+          fail=0
+          check_skipped() {
+            if [ "$2" != "skipped" ]; then
+              echo "Job $1 result: $2 (expected skipped for an untrusted fork)"
+              fail=1
+            fi
+          }
+          check_skipped devcontainer-changes "$CHANGES_RESULT"
+          check_skipped build "$BUILD_RESULT"
+          check_skipped devcontainer-assert-bot "$ASSERT_RESULT"
+          if [ "$fail" -ne 0 ]; then
+            exit 1
+          fi
+          echo "Untrusted fork trust boundary enforced: no repository-controlled devcontainer job ran."
+      - if: env.IS_FORK != 'true'
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      # The detector itself must always run: if IT was skipped or failed, the
+      # `changed` answer below is not trustworthy and nothing may be excused.
+      - name: Verify the change detector ran
+        if: env.IS_FORK != 'true'
+        env:
+          EXPECTED_RESULT: success
+        run: ./scripts/verify-ci-results.sh "devcontainer-changes=${CHANGES_RESULT}"
+      # `skipped` is accepted below ONLY where a predicate proves it
+      # deliberate: here, that the range contains no devcontainer-relevant
+      # changes.
+      - name: Verify deliberate no-op (no devcontainer changes)
+        if: env.IS_FORK != 'true' && env.CHANGED == 'false'
+        env:
+          EXPECTED_RESULT: skipped
+        run: |
+          ./scripts/verify-ci-results.sh \
+            "build=${BUILD_RESULT}" \
+            "devcontainer-assert-bot=${ASSERT_RESULT}"
+          echo "No devcontainer-relevant changes in this range — the build and assertion jobs were deliberately skipped."
+      - name: Verify the build succeeded
+        if: env.IS_FORK != 'true' && env.CHANGED != 'false'
+        env:
+          EXPECTED_RESULT: success
+        run: ./scripts/verify-ci-results.sh "build=${BUILD_RESULT}"
+      # The bot-autonomy container assertion is legitimately absent on
+      # merge_group — the credentialed half stands down at the fork trust
+      # boundary there (see devcontainer-assert-bot above). Its expected
+      # result is derived from that same predicate, so `skipped` is never
+      # merely tolerated.
+      - name: Verify the container assertion matched its predicate
+        if: env.IS_FORK != 'true' && env.CHANGED != 'false'
+        env:
+          EXPECTED_RESULT: ${{ github.event_name != 'merge_group' && 'success' || 'skipped' }}
+        run: ./scripts/verify-ci-results.sh "devcontainer-assert-bot=${ASSERT_RESULT}"

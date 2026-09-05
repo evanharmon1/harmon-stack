@@ -237,6 +237,12 @@ This mirrors the importable
             "context": "terraform-verify",
             "integration_id": 15368
 [% endif %]
+[% if devcontainer %]
+          },
+          {
+            "context": "devcontainer-verify",
+            "integration_id": 15368
+[% endif %]
           }
         ]
       }
@@ -358,6 +364,9 @@ The required checks are the build gates[% if use_codeql %] plus CodeQL's stable 
 [% if include_terraform %]
 | `terraform-verify` | Aggregate for `terraform.yml`. Runs on every event with **no `paths:` filter** — a filtered workflow never reports, and a required check that never reports blocks the merge forever. Its `terraform-changes` job decides internally, so an unrelated PR is a deliberate, reported no-op |
 [% endif %]
+[% if devcontainer %]
+| `devcontainer-verify` | Aggregate for `devcontainer-build.yml`. Runs on every event with **no `paths:` filter** — its `devcontainer-changes` job decides internally, so an unrelated PR is a deliberate, reported no-op. See "Fork pull requests and `merge_group` for `devcontainer-verify`" below |
+[% endif %]
 
 Requiring the aggregate `verify` (rather than each leaf job) keeps the required-check
 list stable as jobs are added inside `build.yml`.
@@ -401,6 +410,32 @@ there is no trusted pre-merge run. If you begin accepting fork pull requests,
 validate them before merging — push the branch to this repository and let it run
 as a same-repo PR, or review the push-to-`main` run and be ready to revert.
 [% endif %]
+[% endif %]
+
+[% if devcontainer %]
+### Fork pull requests and `merge_group` for `devcontainer-verify`
+
+`devcontainer-verify` reports success with nothing having run on a fork pull
+request — the same shape as `verify`/`security`[% if include_terraform %] and `terraform-verify`[% endif %]
+above: every repository-controlled job in `devcontainer-build.yml` is
+skipped at the fork trust boundary, and the aggregate verifies exactly that.
+Before approving or merging a fork PR that touches `.devcontainer/**`,
+review its diff for anything touching `.github/workflows/**` or
+`scripts/devcontainer-*`, then get a real, credentialed CI run by pushing
+its branch to a same-repository branch and opening a throwaway pull request
+against `main` — never merge it, and never use `pull_request_target`
+instead.
+
+On a `merge_group` event, `devcontainer-verify` still requires the `build`
+job to succeed — it validates that the devcontainer image builds — but that
+job never authenticates to the registry there (no login, no cache pull, no
+push), because GitHub does not expose the queued PR's fork-vs-same-repo
+origin on `merge_group` the way it does on `pull_request`. The credentialed
+`devcontainer-assert-bot` job (it starts a real container and needs a
+registry login for its cache, which is a static field in
+`.devcontainer/devcontainer.json` this workflow cannot condition per event)
+stands down entirely on `merge_group` instead, and `devcontainer-verify`
+treats that skip as the expected, passing outcome.
 [% endif %]
 
 [% if use_codeql %]
