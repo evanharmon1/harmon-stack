@@ -41,6 +41,24 @@ if [ -x "$system_binary" ] && [ "$("$system_binary" --version | head -1)" = "$ve
     if [ -x "$real_bin" ]; then
         install -m 0755 "$system_binary" "$real_bin"
         ln -sfn "$real_bin" "$link_bin"
+    elif [ -L "$link_bin" ]; then
+        # No local real copy to (re)point at, so this branch installs
+        # nothing — only remove a leftover $link_bin that a later
+        # replacement could not perform cleanly: a dangling symlink (its
+        # target already gone, e.g. after a prior agy-real was removed by
+        # a toggle-off/on cycle or a stale image) or a symlink to an
+        # existing directory (bot-autonomy/antigravity.sh's install_wrapper
+        # does `mv -f "$tmp" "$link_bin"`, which lands *inside* an existing
+        # directory target instead of replacing the link). A regular file,
+        # a valid wrapper, or a symlink to an existing file is left exactly
+        # as found: either is safe for a later `mv -f`/`ln -sfn` to
+        # replace, and removing one here — with nothing on this branch to
+        # replace it with — would destroy a still-valid wrapper for good in
+        # the dev profile, which has no follow-on apply step to reinstall
+        # it (#1171).
+        if [ ! -e "$link_bin" ] || [ -d "$link_bin" ]; then
+            rm -f "$link_bin"
+        fi
     fi
     exit 0
 fi
