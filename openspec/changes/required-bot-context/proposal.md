@@ -106,3 +106,5 @@ existing, unmodified assertion to a required context.)_
   both root and template twins.
 - No change to `.devcontainer/**` content, `scripts/devcontainer-assert.sh`,
   or `scripts/devcontainer-smoke.sh`.
+- `docs/copier-options.md`'s `devcontainer` script count (3 → 4, for the new
+  `devcontainer-changed.sh`).
