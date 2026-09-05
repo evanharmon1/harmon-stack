@@ -439,7 +439,6 @@ registry login for its cache, which is a static field in
 stands down entirely on `merge_group` instead, and `devcontainer-verify`
 treats that skip as the expected, passing outcome.
 [% endif %]
-
 [% if use_codeql %]
 `codeql-verify` is stable across visibility: public and paid-private CodeQL must
 succeed for the selected `codeql_languages`; free private repositories and fork
