@@ -148,6 +148,7 @@ tasks:
       - task: test:image-staleness
       - task: test:open-devcontainer
       - task: test:bot-autonomy
+      - task: test:devcontainer-changed
 [% endif %]
       - task: test
 
@@ -908,6 +909,11 @@ tasks:
     desc: Unit-test bot-autonomy.sh's registry coverage, Codex parity, and per-module fixtures (no container needed)
     cmds:
       - ./scripts/test-bot-autonomy.sh
+
+  test:devcontainer-changed:
+    desc: Unit-test the devcontainer-build.yml change detector (devcontainer-changed.sh)
+    cmds:
+      - ./scripts/test-devcontainer-changed.sh
 
 [% endif %]
 

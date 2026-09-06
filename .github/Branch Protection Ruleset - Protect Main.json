@@ -52,6 +52,10 @@
           {
             "context": "closing-keywords",
             "integration_id": 15368
+          },
+          {
+            "context": "devcontainer-verify",
+            "integration_id": 15368
           }
         ]
       }

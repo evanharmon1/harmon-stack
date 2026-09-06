@@ -8,9 +8,9 @@ This document explains the branch protection ruleset applied to `main` and how i
 
 An importable copy of the ruleset ships in this repo at
 `.github/Branch Protection Ruleset - Protect Main.json`. Apply it through the
-GitHub **UI import** — do this only once `build.yml`[% if use_codeql %], `codeql.yml`[% endif %][% if include_terraform %], `terraform.yml`[% endif %] are on
+GitHub **UI import** — do this only once `build.yml`[% if use_codeql %], `codeql.yml`[% endif %][% if include_terraform %], `terraform.yml`[% endif %][% if devcontainer %], `devcontainer-build.yml`[% endif %] are on
 `main`, so the required
-`verify`/`security`[% if use_codeql %]/`codeql-verify`[% endif %][% if include_terraform %]/`terraform-verify`[% endif %] checks can actually report.
+`verify`/`security`[% if use_codeql %]/`codeql-verify`[% endif %][% if include_terraform %]/`terraform-verify`[% endif %][% if devcontainer %]/`devcontainer-verify`[% endif %] checks can actually report.
 Importing first wedges the repository: a required check with no workflow to emit
 it stays pending forever and blocks every pull request.
 
@@ -237,6 +237,12 @@ This mirrors the importable
             "context": "terraform-verify",
             "integration_id": 15368
 [% endif %]
+[% if devcontainer %]
+          },
+          {
+            "context": "devcontainer-verify",
+            "integration_id": 15368
+[% endif %]
           }
         ]
       }
@@ -358,6 +364,9 @@ The required checks are the build gates[% if use_codeql %] plus CodeQL's stable 
 [% if include_terraform %]
 | `terraform-verify` | Aggregate for `terraform.yml`. Runs on every event with **no `paths:` filter** — a filtered workflow never reports, and a required check that never reports blocks the merge forever. Its `terraform-changes` job decides internally, so an unrelated PR is a deliberate, reported no-op |
 [% endif %]
+[% if devcontainer %]
+| `devcontainer-verify` | Aggregate for `devcontainer-build.yml`. Runs on every event with **no `paths:` filter** — its `devcontainer-changes` job decides internally, so an unrelated PR is a deliberate, reported no-op. See "Fork pull requests and `merge_group` for `devcontainer-verify`" below |
+[% endif %]
 
 Requiring the aggregate `verify` (rather than each leaf job) keeps the required-check
 list stable as jobs are added inside `build.yml`.
@@ -403,6 +412,52 @@ as a same-repo PR, or review the push-to-`main` run and be ready to revert.
 [% endif %]
 [% endif %]
 
+[% if devcontainer %]
+### Fork pull requests and `merge_group` for `devcontainer-verify`
+
+`devcontainer-verify` reports success with nothing having run on a fork pull
+request — the same shape as `verify`/`security`[% if include_terraform %] and `terraform-verify`[% endif %]
+above: every repository-controlled job in `devcontainer-build.yml` is
+skipped at the fork trust boundary, and the aggregate verifies exactly that.
+Before approving or merging a fork PR that touches `.devcontainer/**`,
+review its diff for anything touching `.github/workflows/**` or
+`scripts/devcontainer-*`, then get a real, credentialed CI run by pushing
+its branch to a same-repository branch and opening a throwaway pull request
+against `main` — never merge it, and never use `pull_request_target`
+instead.
+
+On a `merge_group` event, `devcontainer-verify` still requires
+`build-merge-group` to succeed — it validates that the devcontainer image
+builds. A runtime guard living in the same file a queued change can edit
+would not have been a real credential boundary here, since `merge_group`
+runs the workflow definition from the queued candidate tree itself, and
+GitHub does not expose that pull request's fork-vs-same-repo origin on
+`merge_group` the way it does on `pull_request`. `permissions:` is not
+immutable either — a PR could widen it back to `packages: write` the same
+way it could edit anything else in this file. What actually stops that is
+`require_code_owner_review` (this repository's CODEOWNERS covers every
+file, workflows included), so widening a permissions block is a
+conspicuous, reviewable line a human must approve first. What the narrow,
+dedicated `permissions: {contents: read}` block on `build-merge-group`
+buys, given that review holds, is that no _step_ it runs — trusted or
+attacker-added, without also touching `permissions:` itself — can
+authenticate to the registry: GitHub resolves that job's token from this
+block before any step executes, and no `docker/login-action` step exists
+here under any condition to notice its absence. The credentialed
+`devcontainer-assert-bot` job (it starts a real container and needs a
+registry login for its cache, which is a static field in
+`.devcontainer/devcontainer.json` this workflow cannot condition per job)
+stands down entirely on `merge_group` instead, and `devcontainer-verify`
+treats that skip as the expected, passing outcome.
+
+Every job that runs on `merge_group` (`devcontainer-changes`,
+`build-merge-group`, `devcontainer-verify`) is also pinned to
+`runs-on: ubuntu-latest`, ignoring the `CI_RUNS_ON` variable entirely — see
+[ci-cd.md](ci-cd.md)'s "Security boundaries". A repository that has pointed
+`CI_RUNS_ON` at a persistent self-hosted runner must never have that
+runner's filesystem, credentials, or a prior job's leftovers exposed to a
+queued, possibly fork-authored devcontainer build.
+[% endif %]
 [% if use_codeql %]
 `codeql-verify` is stable across visibility: public and paid-private CodeQL must
 succeed for the selected `codeql_languages`; free private repositories and fork

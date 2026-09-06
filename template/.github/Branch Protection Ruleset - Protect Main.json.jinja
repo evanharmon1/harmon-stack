@@ -64,6 +64,12 @@
             "context": "terraform-verify",
             "integration_id": 15368
 [% endif %]
+[% if devcontainer %]
+          },
+          {
+            "context": "devcontainer-verify",
+            "integration_id": 15368
+[% endif %]
           }
         ]
       }

@@ -8,9 +8,10 @@ This document explains the branch protection ruleset applied to `main` and how i
 
 An importable copy of the ruleset ships in this repo at
 `.github/Branch Protection Ruleset - Protect Main.json`. Apply it through the
-GitHub **UI import** — do this only once `build.yml` is on
+GitHub **UI import** — do this only once `build.yml` and
+`devcontainer-build.yml` are on
 `main`, so the required
-`verify`/`security` checks can actually report.
+`verify`/`security`/`devcontainer-verify` checks can actually report.
 Importing first wedges the repository: a required check with no workflow to emit
 it stays pending forever and blocks every pull request.
 
@@ -188,6 +189,10 @@ This mirrors the importable
           {
             "context": "closing-keywords",
             "integration_id": 15368
+          },
+          {
+            "context": "devcontainer-verify",
+            "integration_id": 15368
           }
         ]
       }
@@ -269,6 +274,7 @@ The required checks are the build gates (see [ci-cd.md](ci-cd.md)):
 | `verify`   | Aggregate build gate — rolls up root lint/template validation |
 | `security` | gitleaks + dependency audit + Semgrep CE (this repo's SAST engine — it has no CodeQL workflow) |
 | `closing-keywords` | Metadata-only PR gate: a same-repository closing keyword may pass only when its issue has no unchecked task-list items; it reports a successful no-op on push, merge-queue, and manual runs |
+| `devcontainer-verify` | Aggregate for `devcontainer-build.yml`. Runs on every event with **no `paths:` filter** — a filtered workflow never reports, and a required check that never reports blocks the merge forever. Its `devcontainer-changes` job decides internally, so an unrelated PR is a deliberate, reported no-op. See "Fork pull requests report a vacuous pass" and "`merge_group` runs a credential-free build" below |
 
 Snyk PR/App checks are absent by default. This repo's weekly
 `snyk-scheduled.yml` — like the one a generated repo opts into — is advisory and
@@ -281,6 +287,90 @@ routing; see [security.md](security.md).
 
 Requiring the aggregate `verify` (rather than each leaf job) keeps the required-check
 list stable as jobs are added inside `build.yml`.
+
+### Fork pull requests report a vacuous pass
+
+`devcontainer-verify` — like `verify` and `security` — is a required check
+that a fork pull request can pass **without** its devcontainer content ever
+being built or asserted: `devcontainer-build.yml`'s jobs already skip
+entirely for a `pull_request` event whose `head.repo.full_name` differs from
+this repository (no job here ever runs fork-authored code with a
+credential, by design), and the aggregator treats that skip as the
+expected, passing outcome. This keeps a fork PR **mergeable** — it is never
+permanently stuck behind a required check that can never report — but it
+also means the automated check alone proves nothing about a fork PR's
+`.devcontainer/**` changes.
+
+### Getting a real signal on a fork PR's devcontainer change
+
+Before approving or merging a pull request from a fork that touches
+`.devcontainer/**`, get a real, credentialed CI run:
+
+1. Review the diff first, specifically for anything touching
+   `.github/workflows/**` or `scripts/devcontainer-*`. The next step runs
+   that content's own workflow definition with full repository credentials,
+   so tampering there is the one thing this procedure cannot itself catch —
+   this is the same manual-trust decision this repository's fork check
+   (`head.repo.full_name == github.repository`) already makes everywhere
+   else, not a new technical control.
+2. `gh pr checkout <number>` to fetch the fork's branch locally.
+3. Push it to a same-repository branch and open a **throwaway** pull request
+   from that branch against `main` — never merge it. Because it targets
+   `main` from a same-repository branch, `devcontainer-build.yml` runs its
+   full credentialed path (`build`, `devcontainer-assert-bot`) against that
+   exact content.
+4. Watch that PR's checks. Once you have the signal you need, close the
+   throwaway PR and delete the branch, then review/merge the original fork
+   PR as usual.
+
+Never use `pull_request_target` for this instead: it would run trusted
+workflow code against the fork's _data_ while still granting a write-capable
+token, which is a materially different (and worse) trust boundary than
+temporarily promoting the fork's own content to a same-repository branch a
+maintainer chose to trust.
+
+### `merge_group` runs a credential-free build
+
+Organizations using the merge queue produce a `merge_group` event when a
+pull request — including one originally opened from a fork — is queued to
+merge. GitHub does not expose that pull request's fork-vs-same-repository
+origin on a `merge_group` event the way it does on `pull_request`, **and**
+that event runs the workflow definition from the queued candidate tree
+itself, so a runtime `if:` guard inside `devcontainer-build.yml` is not a
+credential boundary: a pull request that also edits this file could simply
+not include that guard in its own submitted copy.
+
+`permissions:` is not immutable either — a PR that edits this file could
+widen `build-merge-group`'s block back to `packages: write`, or add an
+entirely new job that declares it, the same way it could edit anything else
+here. What actually stops that is `require_code_owner_review`: this
+repository's CODEOWNERS covers every file, workflows included, so widening
+a permissions block is a conspicuous, reviewable line in the diff a human
+must approve before the change can reach `main` or a merge queue at all —
+the same review that already has to catch a credential-exfiltration step
+added directly to any other job in this file. What the narrow, dedicated
+`permissions: {contents: read}` block buys, given that review holds, is
+that no _step_ `build-merge-group` runs — trusted or attacker-added,
+without also touching `permissions:` itself — can authenticate to the
+registry, because the token GitHub issues for that job (resolved from this
+block before any step executes) has no `packages` scope to do so, and no
+`docker/login-action` step exists here under any condition to notice its
+absence. `build-merge-group` still runs and
+must still succeed — it validates that the devcontainer image builds — but
+`devcontainer-verify` does not expect `devcontainer-assert-bot` to run on
+`merge_group` at all: its registry cache is a static field in
+`.devcontainer/devcontainer.json`, not a workflow expression this repository
+can condition per job, so rather than risk a partial credential-free path,
+that job stands down entirely and `devcontainer-verify` treats the skip as
+the expected, passing outcome.
+
+Every job that runs on `merge_group` (`devcontainer-changes`,
+`build-merge-group`, `devcontainer-verify`) is also pinned to
+`runs-on: ubuntu-latest`, ignoring the `CI_RUNS_ON` variable entirely — see
+[ci-cd.md](ci-cd.md)'s "Security boundaries". A repository that has pointed
+`CI_RUNS_ON` at a persistent self-hosted runner must never have that
+runner's filesystem, credentials, or a prior job's leftovers exposed to a
+queued, possibly fork-authored devcontainer build.
 
 ## What the AI Agent Can and Cannot Do
 
