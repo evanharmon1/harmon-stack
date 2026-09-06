@@ -41,9 +41,11 @@ implements it.
   `ensure-antigravity-cli.sh` runs, in either profile. Collapse the "exactly
   one of four states" requirement (and its scenarios) back to three states,
   drop the state-(d)/#1171 exception from every scenario that carries it, and
-  make the "`install_wrapper` always replaces cleanly" claim unconditional —
-  a later `ln -sfn` already replaces a symlink-to-directory cleanly on its
-  own and needed no such claim.
+  narrow the "`install_wrapper` replaces cleanly" claim to the values it
+  actually replaces cleanly — a regular file or any symlink (a later
+  `ln -sfn` already replaces a symlink-to-directory cleanly on its own and
+  needed no such claim). A literal directory at `agy` or `agy-real` is out
+  of scope here, tracked by issue `#1179`.
 - `docs/guides/devcontainers.md` (+ its jinja `template/` twin): drop the
   state-(d)/#1171 caveat in the Antigravity section now that the early return
   self-heals a leftover that would otherwise block reconciliation.
@@ -56,11 +58,15 @@ implements it.
 
 ### Modified Capabilities
 
-- `devcontainer/bot-autonomy`: the Antigravity launcher invariant
-  (`~/.local/bin/agy` is exactly one of three states, never a dangling
-  symlink or an unreplaceable symlink-to-directory) now holds unconditionally
-  after `ensure-antigravity-cli.sh` runs, in both the bot and dev profiles —
-  closing the state-(d) exception #1171 tracks.
+- `devcontainer/bot-autonomy`: on `ensure-antigravity-cli.sh`'s
+  system-binary-sufficient early return, in both the bot and dev profiles, a
+  dangling symlink or a symlink to an existing directory at
+  `~/.local/bin/agy` is now always removed, and a regular file or a symlink
+  to an existing file is always preserved — closing the state-(d) exception
+  issue `#1171` tracked. Under this capability's own normal (untampered)
+  operation, `agy` is then exactly one of three states; a literal directory
+  at `agy` or `agy-real` is a different shape this fix does not cover,
+  tracked by issue `#1179`.
 
 ## Impact
 
