@@ -51,10 +51,11 @@ trap 'rm -rf "$tmp_dir"' EXIT
 if [ -n "$fixture_list" ]; then
     cp "$fixture_list" "$tmp_dir/list.json" 2>/dev/null || die_unavailable "ruleset list fixture cannot be read"
 else
-    gh api "repos/${repo}/rulesets" >"$tmp_dir/list.json" 2>/dev/null || die_unavailable "gh cannot read repository rulesets"
+    gh api --paginate --slurp "repos/${repo}/rulesets?includes_parents=false&per_page=100" 2>/dev/null |
+        jq 'add' >"$tmp_dir/list.json" || die_unavailable "gh cannot read repository rulesets"
 fi
 
-ruleset_id="$(jq -er --arg name "$ruleset_name" '[ .[] | select(.name == $name) ] | if length == 1 then .[0].id else empty end' "$tmp_dir/list.json" 2>/dev/null)" || die_unavailable "live ruleset not found exactly once: $ruleset_name"
+ruleset_id="$(jq -er --arg name "$ruleset_name" '[ .[] | select(.name == $name and .source_type == "Repository") ] | if length == 1 then .[0].id else empty end' "$tmp_dir/list.json" 2>/dev/null)" || die_unavailable "live repository ruleset not found exactly once: $ruleset_name"
 
 if [ -n "$fixture_detail" ]; then
     cp "$fixture_detail" "$tmp_dir/live.json" 2>/dev/null || die_unavailable "ruleset detail fixture cannot be read"
