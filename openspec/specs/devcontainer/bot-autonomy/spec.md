@@ -413,29 +413,59 @@ passing against the stale copy.
   `approval_policy` differ between the two files
 - **THEN** the test passes
 
-### Requirement: Antigravity's launcher is exactly one of four states, driven by a rendered Copier-answer marker
-`~/.local/bin/agy` SHALL be exactly one of: **(a)** the flag-injecting
-autonomy wrapper — present only in the bot profile when
-`containerEnv.HARMON_BOT_AUTONOMY_ANTIGRAVITY` reads `enabled` — that
-delegates to `~/.local/bin/agy-real` when present and executable, else
-the system binary at `/usr/local/bin/agy`; **(b)** a plain symlink to an
-**executable** `agy-real`, present only when `agy-real` both exists and
-is executable; **(c)** absent; or **(d)** unreconciled: whatever
-pre-existed at `~/.local/bin/agy` — a regular file, a wrapper, or any
-symlink regardless of whether its target exists or is executable
-(including one pointing at an `agy-real` that exists but is no longer
-executable, which state (b) excludes by requiring executability) — when
-`ensure-antigravity-cli.sh` takes its system-binary-sufficient early
-return: the pinned system binary is present on `PATH` and no executable
-local `agy-real` copy exists (`[ -x "$real_bin" ]` false), so that path
-never touches `agy` at all. This precondition is stated here once; every
-other reference to state (d) below points back to it rather than
-restating it. These four states are mutually exclusive by construction:
-(b) and (d) cannot both hold for the same symlink because (b) requires
-`agy-real` executable and (d)'s precondition requires it not executable.
-States (a)-(c) SHALL NOT be a dangling symlink (a symlink whose target
-does not exist); state (d) is the one documented exception where that
-invariant can be violated, tracked by #1171 until reconciled.
+### Requirement: Antigravity's launcher is exactly one of three states, driven by a rendered Copier-answer marker
+On its **system-binary-sufficient early return** — the pinned system
+binary is present on `PATH` and no executable local `agy-real` copy
+exists (`[ -x "$real_bin" ]` false) — `ensure-antigravity-cli.sh` SHALL
+guarantee exactly this about `~/.local/bin/agy`, in either profile: it is
+never a dangling symlink (a symlink whose target does not exist) —
+already a broken launcher regardless of what replaces it later — and
+never a symlink to an existing directory, the one shape
+`bot-autonomy/antigravity.sh`'s `install_wrapper` cannot perform cleanly:
+its unguarded `mv -f "$tmp" "$link_bin"` lands *inside* an existing
+directory target instead of replacing the link. A *later* `ln -sfn` is
+unaffected by that same shape — its `-n` flag treats the link name as a
+plain file rather than following it as a directory, so it replaces a
+symlink-to-directory cleanly; this concern is specific to `mv -f`. This
+closes the gap issue `#1171` tracked as launcher
+state "(d) unreconciled": that state was *any* pre-existing value this
+branch left untouched, without regard for whether it broke a later
+replacement; no state that broad is defined for this branch any longer.
+Beyond that guarantee, this branch makes no claim about the **content**
+of whatever it leaves behind, and does not inspect or validate it —
+attempting to do so, and correcting what it finds, is exactly the
+unconditional-removal approach a first attempt at this fix (the `#1168`
+branch) took and had reverted (it could delete a still-valid wrapper
+before its replacement was guaranteed).
+
+Under this capability's own normal operation — nothing outside it having
+altered what it wrote — `~/.local/bin/agy` is exactly one of three
+states: **(a)** the flag-injecting autonomy wrapper — present only in the
+bot profile when `containerEnv.HARMON_BOT_AUTONOMY_ANTIGRAVITY` reads
+`enabled` — that delegates to `~/.local/bin/agy-real` when present and
+executable, else the system binary at `/usr/local/bin/agy`; **(b)** a
+plain symlink to an **executable** `agy-real`, present only when
+`agy-real` both exists and is executable; or **(c)** absent. A value
+reached only through tampering — a symlink whose target lost its
+executable bit after installation, an unrelated file placed at this path
+by something outside this capability, or `agy` (on any exit path other
+than the early return above) or `agy-real` itself becoming a directory
+rather than a regular file — is neither guaranteed to be prevented
+(beyond the early-return guarantee above) nor guaranteed to be one of
+(a)/(b)/(c); it is simply left as found or reconciled only as far as that
+guarantee reaches, the same as any other content this capability does not
+validate. Every write path here assumes `agy-real`, when it exists, is a
+regular executable file — an assumption `#1171` does not change — so a
+directory occupying `agy` or `agy-real` on a different exit path than the
+early return above is a pre-existing, tamper-only condition this fix
+neither introduces nor claims to close; it is tracked separately (this
+issue's pull request records it as a deferred finding) rather than folded
+into this guarantee. Validating content, not merely shape, is
+`bot-autonomy.sh verify`'s job in the bot profile (below); the dev
+profile has no equivalent check by design (see the Human dev profile
+requirement), so a tampered value there is a pre-existing, unrelated risk
+this fix neither introduces nor leaves open any further than it already
+was.
 `HARMON_BOT_AUTONOMY_ANTIGRAVITY` SHALL be set by the **rendered**
 `devcontainer.json` (bot) and `dev/devcontainer.json` — both
 `[% if devcontainer %]`-conditional jinja twins — from
@@ -453,28 +483,36 @@ repo regardless of that repo's answers, so the rendered `containerEnv`
 marker is the only channel through which a verbatim script can know a
 per-repo Copier answer at all.
 
-`ensure-antigravity-cli.sh` SHALL own `agy-real` and states (b)/(c)/(d):
-in **either** profile, WHEN the marker reads `enabled`, it either
-downloads or reconciles the pinned binary at `agy-real` and (re)points
-a plain `agy → agy-real` symlink (state b) — or, on its
-system-binary-sufficient early return (state (d)'s precondition, defined
-above), reaches state (c) if `agy` was already absent, or state (d)
-otherwise. The bot profile self-heals out of state (d) regardless,
-because the `antigravity` module's `apply` runs immediately after and
-overwrites `agy` with the wrapper (barring the one shape `mv -f` cannot
-replace — a symlink to an existing directory, which this capability's
-own state model never produces); the dev profile has no such follow-on
-step, so state (d) can persist there. WHEN the marker reads anything
-other than `enabled` (`disabled`, or absent on an image built before
-this marker existed), it SHALL ensure **neither** `agy-real` nor `agy`
-exists, removing either if a prior run (before a Copier-answer toggle)
-or a stale image left them behind — reaching state (c) directly, never
-state (b) or (d). The bot-autonomy `antigravity` module, bot-only,
-SHALL act only on top of that: WHEN its own read of the marker is
-`enabled`, `apply` overwrites `~/.local/bin/agy` — whatever
-`ensure-antigravity-cli.sh` left there, state (b) or (d) alike — with
-the wrapper (state a); WHEN the marker is not `enabled`, `apply` SHALL
-NOT create, remove, or otherwise touch `agy` at all
+`ensure-antigravity-cli.sh` SHALL own `agy-real` and states (b)/(c): in
+**either** profile, WHEN the marker reads `enabled`, it either downloads
+or reconciles the pinned binary at `agy-real` and (re)points a plain
+`agy → agy-real` symlink (state b) — or, on its system-binary-sufficient
+early return (the pinned system binary is present on `PATH` and no
+executable local `agy-real` copy exists, `[ -x "$real_bin" ]` false),
+installs nothing itself and instead reconciles whatever already occupies
+`agy`: absence stays absence (state c); a dangling symlink (already a
+broken launcher on its own) or a symlink to an existing directory (the
+one shape `bot-autonomy/antigravity.sh`'s `install_wrapper`'s unguarded
+`mv -f` cannot safely replace, landing inside it instead of replacing the
+link — a later `ln -sfn` is unaffected) is removed, reaching state (c);
+any other
+pre-existing value (a regular file, a valid wrapper, or a symlink to an
+existing file) is left exactly as found, since this branch has nothing of
+its own to replace it with and removing a still-valid wrapper before its
+replacement exists is exactly the defect a first attempt at this fix (the
+`#1168` branch) introduced and had reverted. This reconciliation is
+unconditional and runs identically in both profiles: unlike the removed
+state (d), reaching a valid state here never depends on the bot profile's
+follow-on `apply` step. WHEN the marker reads anything other than
+`enabled` (`disabled`, or absent on an image built before this marker
+existed), it SHALL ensure **neither** `agy-real` nor `agy` exists,
+removing either if a prior run (before a Copier-answer toggle) or a stale
+image left them behind — reaching state (c) directly, never state (b).
+The bot-autonomy `antigravity` module, bot-only, SHALL act only on top of
+that: WHEN its own read of the marker is `enabled`, `apply` overwrites
+`~/.local/bin/agy` — whatever `ensure-antigravity-cli.sh` left there —
+with the wrapper (state a); WHEN the marker is not `enabled`, `apply`
+SHALL NOT create, remove, or otherwise touch `agy` at all
 (`ensure-antigravity-cli.sh`, which runs first, has already left it
 absent — state (c) — and re-touching it would be redundant, not
 corrective) and SHALL restore `~/.gemini/antigravity-cli/settings.json`
@@ -483,8 +521,10 @@ to its pre-managed state (via `apply-antigravity-settings.sh restore`).
 implies is correct, and, **in the bot profile, where it runs**, SHALL
 fail on a dangling symlink regardless of the marker's value — no valid
 state among (a)-(c) is ever a symlink with a missing target there. The
-dev profile has no equivalent check, which is exactly why state (d) is
-not self-correcting there today.
+dev profile has no equivalent `verify` step, but does not need one for
+this invariant: `ensure-antigravity-cli.sh`'s own reconciliation on the
+early return (above) is what keeps the dev profile's `agy` out of a
+dangling or unreplaceable state, not a follow-on check.
 
 WHEN the wrapper is installed (state a), it SHALL prepend
 `--dangerously-skip-permissions` to every **agent/headless execution**
@@ -531,32 +571,39 @@ login/interactive shell, a Foreman-dispatched process, a cron job).
   `~/.local/bin/agy-real` and (re)points `~/.local/bin/agy` at it as a
   plain symlink — state (b)
 
-#### Scenario: ensure-antigravity-cli.sh leaves agy absent when the current system binary already satisfies the pin
+#### Scenario: ensure-antigravity-cli.sh leaves agy absent when the current system binary already satisfies the pin and nothing pre-existed
 - **WHEN** `HARMON_BOT_AUTONOMY_ANTIGRAVITY` reads `enabled`,
-  `ensure-antigravity-cli.sh` meets state (d)'s precondition (defined in
-  the requirement above), and `agy` was already absent beforehand
+  `ensure-antigravity-cli.sh` meets the system-binary-sufficient early
+  return's precondition (defined in the requirement above), and `agy` was
+  already absent beforehand
 - **THEN** it creates neither `agy-real` nor `agy` — avoiding an
   unnecessary shadow copy of a binary the image already ships — and
   `agy` resolves directly to the sufficient system binary via `PATH`:
-  state (c), not state (d)
+  state (c)
 
-#### Scenario: a pre-existing agy is not reconciled by the system-binary-sufficient exit — state (d), tracked by #1171
-- **WHEN** `ensure-antigravity-cli.sh` meets state (d)'s precondition
-  (defined in the requirement above) and something already occupies
-  `agy` — most plausibly a dangling symlink left behind after `agy-real`
-  was removed some other way, but this branch does not distinguish that
-  from a wrapper or any other file already at that path
-- **THEN** it exits without creating `agy-real` or otherwise touching
-  `agy` — state (d). In the bot profile this self-heals: the
-  `antigravity` module's `apply` runs immediately after and overwrites
-  `agy` with the wrapper for whatever it finds (the one shape `mv -f`
-  cannot replace — a symlink to an existing directory — is not a shape
-  this capability's own state model ever produces). The dev profile has
-  no such follow-on step, so state (d) survives there until a full
-  disable/re-enable cycle or a manual cleanup clears it. #1171 tracks
-  reconciling it without repeating the earlier, reverted
-  unconditional-removal attempt's own defect (deleting a still-valid
-  wrapper before its replacement was guaranteed)
+#### Scenario: the system-binary-sufficient early return removes a leftover agy that would break a later replacement
+- **WHEN** `ensure-antigravity-cli.sh` meets the system-binary-sufficient
+  early return's precondition (defined in the requirement above) and
+  `~/.local/bin/agy` is a dangling symlink (most plausibly left behind
+  after `agy-real` was removed some other way) or a symlink to an
+  existing directory
+- **THEN** it removes `~/.local/bin/agy` before exiting, reaching state
+  (c), in both the bot and dev profiles — so a later `install_wrapper`'s
+  `mv -f` always either lands on a clean absence or is never reached
+  because a fresh `ln -sfn` on a subsequent enabled run already resolved
+  it, and a bare `agy` invocation never resolves through a broken link
+
+#### Scenario: the system-binary-sufficient early return leaves a still-valid launcher untouched
+- **WHEN** `ensure-antigravity-cli.sh` meets the system-binary-sufficient
+  early return's precondition (defined in the requirement above) and
+  `~/.local/bin/agy` is a regular file (including a wrapper installed by
+  an earlier `antigravity` module `apply`, found again on a container
+  rebuild) or a symlink whose target exists
+- **THEN** it leaves `~/.local/bin/agy` exactly as found, byte-for-byte —
+  this branch installs nothing of its own to replace it with, and a value
+  already safe for a later `mv -f` or `ln -sfn` to replace needs no
+  reconciliation; removing it here, with no replacement guaranteed on
+  this branch, is the defect a first attempt at this fix had reverted for
 
 #### Scenario: ensure-antigravity-cli.sh leaves agy absent when disabled, in either profile
 - **WHEN** `HARMON_BOT_AUTONOMY_ANTIGRAVITY` is not `enabled` and
@@ -565,13 +612,29 @@ login/interactive shell, a Foreman-dispatched process, a cron job).
   `agy` if either exists from a prior run (before a Copier-answer toggle)
   or a stale image
 
-#### Scenario: bot apply installs the wrapper when enabled, whatever ensure-antigravity-cli.sh left
+#### Scenario: bot apply installs the wrapper when enabled, over any replaceable value ensure-antigravity-cli.sh left
 - **WHEN** `HARMON_BOT_AUTONOMY_ANTIGRAVITY` reads `enabled` and the
   `antigravity` module's `apply` runs in the bot profile, after
-  `ensure-antigravity-cli.sh` has already left state (b) or state (d)
+  `ensure-antigravity-cli.sh` has already left `~/.local/bin/agy` as a
+  regular file or as a symlink that does not target a directory — one of
+  states (a)-(c) under this capability's own normal operation, or a
+  tampered-but-still-replaceable value otherwise (see the requirement
+  above)
 - **THEN** `apply` creates or overwrites `~/.local/bin/agy` with the
-  flag-injecting wrapper script either way, since installing the wrapper
-  does not depend on any particular prior state there
+  flag-injecting wrapper script regardless, since `install_wrapper`'s
+  `mv -f` replaces a regular file or a symlink that does not target a
+  directory cleanly whatever its content (dangling or not). A symlink
+  that *does* target a directory is not one of those replaceable shapes —
+  `mv -f`, unlike a later `ln -sfn`, nests the wrapper inside the target
+  instead of replacing the link — but it is exactly the shape
+  `ensure-antigravity-cli.sh`'s early-return reconcile removes on its own
+  path (see the requirement above), so it does not survive to reach this
+  scenario that way. A literal directory at `agy` itself, or at
+  `agy-real` (which an unguarded reconcile step can point a symlink at),
+  reaches the same replacement-blocking family a different way; both it
+  and a directory-targeting symlink reached other than through the
+  early-return reconcile are out of scope for this fix and tracked as
+  issue `#1179`
 
 #### Scenario: bot apply does not touch agy when disabled — it is already absent
 - **WHEN** `HARMON_BOT_AUTONOMY_ANTIGRAVITY` is not `enabled` and the
@@ -579,7 +642,7 @@ login/interactive shell, a Foreman-dispatched process, a cron job).
 - **THEN** `apply` restores `~/.gemini/antigravity-cli/settings.json` via
   `apply-antigravity-settings.sh restore`, and does not create, remove, or
   otherwise touch `~/.local/bin/agy` — `ensure-antigravity-cli.sh`, having
-  already run, has already left it absent
+  already run, has already left it absent — state (c)
 
 #### Scenario: toggling the option off removes agy-real and agy entirely, not a symlink
 - **WHEN** `HARMON_BOT_AUTONOMY_ANTIGRAVITY` was previously `enabled`
@@ -605,7 +668,7 @@ login/interactive shell, a Foreman-dispatched process, a cron job).
   (where the system `agy` binary is installed) onto `PATH` via an `ENV`
   directive, so the ordering applies to every process the container runs —
   not only shells that source `.bashrc`/`.zshrc` — regardless of which of
-  states (a)-(d) `agy` is currently in
+  states (a)-(c) `agy` is currently in
 
 #### Scenario: a process with no shell rc still resolves the wrapper when enabled
 - **WHEN** `HARMON_BOT_AUTONOMY_ANTIGRAVITY` reads `enabled` and
@@ -677,8 +740,9 @@ login/interactive shell, a Foreman-dispatched process, a cron job).
   marker's value
 - **THEN** `verify` exits non-zero naming Antigravity — none of states
   (a)-(c) is ever a dangling link. `bot-autonomy.sh verify` never runs in
-  the dev profile, so no equivalent check catches state (d) there when
-  it is one — the #1171 gap this spec documents in the requirement above
+  the dev profile, but `ensure-antigravity-cli.sh`'s own reconciliation on
+  its early return (defined in the requirement above) is what keeps a
+  dangling link from persisting there too, not a follow-on check
 
 ### Requirement: OpenCode non-interactive boundary forces the managed permission key
 The bot profile SHALL force `permission.*` to `"allow"` in
@@ -805,15 +869,21 @@ this capability's existence rather than by a separate runtime check.
 - **WHEN** `.devcontainer/dev/post-create.sh` runs
 - **THEN** it does not invoke `bot-autonomy.sh apply` or `verify`, and
   never installs the flag-injecting autonomy wrapper (state a) at
-  `~/.local/bin/agy`. Ordinarily only `ensure-antigravity-cli.sh`'s plain
-  `agy → agy-real` symlink (state b, when `HARMON_BOT_AUTONOMY_ANTIGRAVITY`
-  reads `enabled` and a local copy is needed) or absence (state c, when
-  disabled, or when enabled and the on-`PATH` system binary already
-  satisfies the pin with `agy` already absent) is reached in the dev
-  profile — except state (d) (defined in the requirement above,
-  tracked by #1171): since dev post-create has no `apply` step to
-  overwrite a leftover the way the bot profile does, state (d) can
-  persist here indefinitely once reached
+  `~/.local/bin/agy`. `ensure-antigravity-cli.sh`'s own reconciliation on
+  its system-binary-sufficient early return (see the requirement above)
+  removes a dangling symlink or a symlink to an existing directory there
+  too, so no unreconciled dangling or unreplaceable leftover can persist
+  in the dev profile the way it could before issue `#1171`'s fix. That
+  reconciliation is exactly that narrow, though: a regular file
+  (including a wrapper a prior run already installed, or any other file
+  found there) or a symlink to an existing file — executable or not — is
+  preserved exactly as found, same as the requirement above describes.
+  The dev profile therefore reaches its plain `agy → agy-real` symlink
+  (state b, when `HARMON_BOT_AUTONOMY_ANTIGRAVITY` reads `enabled` and a
+  local copy is needed) or absence (state c, when disabled, or when
+  enabled and the on-`PATH` system binary already satisfies the pin) only
+  when nothing else already occupied `agy`; otherwise it retains whatever
+  else was already there instead
 
 #### Scenario: dev profile policies remain prompt-enabled or balanced
 - **WHEN** a dev profile container is created or rebuilt

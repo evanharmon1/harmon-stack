@@ -142,12 +142,14 @@ symlink whenever an executable local copy exists — already at the
 pinned version, or replaced from a matching system binary when it
 wasn't. Once the image ships the pinned version directly, with no local
 copy needed, it becomes a network-free no-op, leaving both files absent
-on a fresh volume so `agy` resolves straight to the system binary; only
-if something already occupies `agy` at that exact point (a stale
-symlink, most plausibly, left by an out-of-band change) is it left
-exactly as found instead — the bot-autonomy spec's state (d), tracked at
-https://github.com/evanharmon1/harmon-init/issues/1171 until reconciled.
-Either way, the bot's `apply` still
+on a fresh volume so `agy` resolves straight to the system binary; if
+something already occupies `agy` at that exact point instead, it is left
+exactly as found unless it would break a later replacement — a dangling
+symlink (its target already gone) or a symlink to an existing directory
+(which the bot's later wrapper install — an unguarded `mv -f` — cannot
+cleanly replace, landing inside the directory instead) — either of which
+this installer removes instead, in both profiles. Either way, the
+bot's `apply` still
 installs its flag-injecting wrapper over whatever this installer
 leaves. It is gated on the rendered
 `containerEnv.HARMON_BOT_AUTONOMY_ANTIGRAVITY` marker — the Copier answer
