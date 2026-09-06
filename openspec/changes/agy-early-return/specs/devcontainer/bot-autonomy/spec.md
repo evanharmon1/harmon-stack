@@ -1,31 +1,40 @@
 ## MODIFIED Requirements
 
 ### Requirement: Antigravity's launcher is exactly one of three states, driven by a rendered Copier-answer marker
-`~/.local/bin/agy`, as produced by this capability's own writes, SHALL be
-exactly one of: **(a)** the flag-injecting autonomy wrapper — present
-only in the bot profile when `containerEnv.HARMON_BOT_AUTONOMY_ANTIGRAVITY`
-reads `enabled` — that delegates to `~/.local/bin/agy-real` when present
-and executable, else the system binary at `/usr/local/bin/agy`; **(b)** a
+`ensure-antigravity-cli.sh` SHALL guarantee exactly this about
+`~/.local/bin/agy`, on every exit path and in either profile: it is never
+a dangling symlink (a symlink whose target does not exist) and never a
+symlink to an existing directory — the two shapes a later replacement
+(`install_wrapper`'s `mv -f`, or a later `ln -sfn`) cannot perform
+cleanly. This closes the gap issue `#1171` tracked as launcher state
+"(d) unreconciled": that state was *any* pre-existing value the early
+return left untouched, without regard for whether it broke a later
+replacement; no state that broad is defined any longer. Beyond that
+guarantee, `ensure-antigravity-cli.sh` makes no claim about the
+**content** of whatever it leaves behind, and does not inspect or
+validate it on this branch — attempting to do so, and correcting what it
+finds, is exactly the unconditional-removal approach a first attempt at
+this fix (the `#1168` branch) took and had reverted (it could delete a
+still-valid wrapper before its replacement was guaranteed). Under this
+capability's own normal operation — nothing outside it having altered
+what it wrote — `~/.local/bin/agy` is exactly one of three states:
+**(a)** the flag-injecting autonomy wrapper — present only in the bot
+profile when `containerEnv.HARMON_BOT_AUTONOMY_ANTIGRAVITY` reads
+`enabled` — that delegates to `~/.local/bin/agy-real` when present and
+executable, else the system binary at `/usr/local/bin/agy`; **(b)** a
 plain symlink to an **executable** `agy-real`, present only when
-`agy-real` both exists and is executable; or **(c)** absent.
-`ensure-antigravity-cli.sh` SHALL NOT exit leaving `~/.local/bin/agy` as a
-dangling symlink (a symlink whose target does not exist) or a symlink to
-an existing directory, in either profile: those are the two shapes a
-later replacement (`install_wrapper`'s `mv -f`, or a later `ln -sfn`)
-cannot perform cleanly, and this capability's own writes never leave
-either behind — closing the gap issue `#1171` tracked as launcher state
-"(d) unreconciled". One narrower residue sits outside this fix's scope,
-by the same acceptance criteria that scoped it: a symlink whose target
-*exists but is not executable* is a symlink to an existing file, not one
-of the two shapes above, so the early return leaves it exactly as found
-rather than guessing whether the missing bit is transient. It is
-reachable only by tampering with `agy-real`'s permissions after the fact
-— every write path here installs it at mode `0755` — and it does not
-silently misdirect a caller: the shell's own `PATH` search skips a name
-match that fails its executable check and continues to the next `PATH`
-entry, so `agy` resolved via `PATH` still reaches the working system
-binary; only a caller naming `~/.local/bin/agy` directly, bypassing
-`PATH` search, sees a permission error there instead.
+`agy-real` both exists and is executable; or **(c)** absent. A value
+reached only through tampering — a symlink whose target lost its
+executable bit after installation, or an unrelated file placed at this
+path by something outside this capability — is neither guaranteed to be
+prevented (beyond the dangling/directory guarantee above) nor guaranteed
+to be one of (a)/(b)/(c); it is simply left as found, the same as any
+other content this early return does not validate. Validating content,
+not merely shape, is `bot-autonomy.sh verify`'s job in the bot profile
+(below); the dev profile has no equivalent check by design (see the
+Human dev profile requirement), so a tampered value there is a
+pre-existing, unrelated risk this fix neither introduces nor leaves open
+any further than it already was.
 `HARMON_BOT_AUTONOMY_ANTIGRAVITY` SHALL be set by the **rendered**
 `devcontainer.json` (bot) and `dev/devcontainer.json` — both
 `[% if devcontainer %]`-conditional jinja twins — from
