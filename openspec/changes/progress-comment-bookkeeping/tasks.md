@@ -16,6 +16,10 @@
 - [ ] 0.5 Settle Q5 in `proposal.md`, `design.md`, and affected `spec.md`
       requirements/scenarios/follow-on scope: define rollback quiescence or a
       checkpoint that prevents stale visible-ledger regression.
+- [ ] 0.6 Carry Q6–Q10 into `proposal.md` and `design.md` as maintainer-owned
+      open design questions: activation deny-list scope, mutating-update text
+      preservation, Foreman provenance, latest-run title-edit acceptance, and
+      malformed-marker fingerprinting.
 
 ## 1. Workflow trigger behavior (harmon-init)
 

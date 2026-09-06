@@ -110,3 +110,21 @@ by this proposal and must be settled before implementation:
   only to new PRs, or has explicit first-creation projection semantics.
 - **Q5. Rollback state handoff.** Define the quiescence or checkpoint that
   prevents rollback from regressing the visible ledger to a stale body state.
+- **Q6. Deny-list vs preserved human text.** The whole-body activation
+  deny-list conflicts with preserving human-authored content outside the owned
+  sections. Decide whether to scope the deny-list to updater-generated fields,
+  reject such comments explicitly, or make the trigger workflows marker-aware.
+- **Q7. Preservation under a mutating update.** The current preservation
+  scenario is satisfied vacuously by compare-before-write. Add a changed-
+  progress fixture proving surrounding human text survives byte-for-byte.
+- **Q8. Foreman exclusion granularity.** Keying on `use_foreman=true` disables
+  the capability for every manually shepherded PR in this repo. Define the
+  exclusion by Foreman ownership/provenance, such as `foreman:dispatched`, or
+  name a non-Foreman replay target.
+- **Q9. Title-edit acceptance.** Acceptance depends on latest-run-per-check
+  handling in harmon-devkit issues #461/#723, which is unreleased. Either make
+  that release a rollout prerequisite or narrow the scenario to dispatching
+  the replacement run.
+- **Q10. Malformed trusted markers.** Truncated markers, duplicate sections,
+  and invalid generations must remain fully fingerprinted; add a readiness-
+  projection fixture.

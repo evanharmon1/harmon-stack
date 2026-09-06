@@ -186,3 +186,19 @@ scenarios, and follow-on scope in this change before implementation proceeds.
   new-PR-only rollout, or explicit first-creation projection semantics.
 - **Q5. Rollback state handoff:** define the quiescence or checkpoint that
   prevents a stale body ledger from regressing the visible marker ledger.
+- **Q6. Deny-list vs preserved human text:** reconcile the whole-body activation
+  deny-list with preservation of human-authored text outside owned sections by
+  scoping generated fields, rejecting such comments, or making workflows
+  marker-aware.
+- **Q7. Preservation under a mutating update:** add a changed-progress fixture
+  that proves surrounding human text survives byte-for-byte; the current
+  compare-before-write scenario is otherwise vacuous.
+- **Q8. Foreman exclusion granularity:** key the exclusion on Foreman
+  ownership/provenance such as `foreman:dispatched`, or name a non-Foreman live
+  replay target instead of disabling all `use_foreman=true` PRs.
+- **Q9. Title-edit acceptance:** make harmon-devkit latest-run-per-check issues
+  #461/#723 a rollout prerequisite, or narrow acceptance to dispatching the
+  replacement run until that release exists.
+- **Q10. Malformed trusted markers:** add a readiness-projection fixture proving
+  truncated markers, duplicate sections, and invalid generations remain fully
+  fingerprinted.
