@@ -12,7 +12,8 @@ and `track-work` copies are managed by harmon-devkit and are not editable here.
 **Goals:**
 
 - Make workflow dispatch depend on authoritative PR changes while retaining
-  title-only validation.
+  title-only and body-only validation; isolate marker comment bookkeeping on
+  the comment event surface.
 - Keep root and template workflows structurally equivalent and testable.
 - Define a precise handoff contract for the shared marker and fingerprint.
 - Preserve every review, reply, deferred-finding, and non-marker authority.
@@ -29,25 +30,27 @@ and `track-work` copies are managed by harmon-devkit and are not editable here.
 
 ### Separate event subscription from job eligibility
 
-Keep `pull_request.edited` in the workflow event types, then guard each job with
-an expression that accepts non-edited events or an edited event whose
-`github.event.changes.title` is present. This is required because GitHub does
-not offer a title-only event filter. A title edit therefore reruns validation;
-a body-only edit reaches the workflow but starts no guard job. The build
-`closing-keywords` job and release-content workflow receive equivalent logic.
+Keep `pull_request.edited` in the workflow event types and let both title and
+body edits run the body-consuming guards. This is required because release
+content and closing-keyword checks consume authoritative PR-body content. A
+marker update is a separate `issue_comment` event and must not enqueue those
+jobs. The aggregate build `verify` job must retain its successful
+`closing-keywords` dependency for all authoritative edit paths.
 
-An alternative was to remove `edited` entirely, but that would miss title-only
-corrections. A body-content hash was rejected because it cannot reliably
-distinguish authoritative body edits from machine bookkeeping and would still
-couple validation to the body surface.
+An alternative was to remove `edited` entirely, but that would miss title- and
+body corrections. A body-content hash was rejected because the body remains
+authoritative and comment bookkeeping is already distinguishable by event
+surface.
 
 ### Keep the marker contract in harmon-devkit
 
-The shared skills define the stable marker, canonical schema, compare-before-write
-protocol, stale-write/concurrency behavior, and the projection used for
-readiness fingerprinting. harmon-init consumes that contract and tests the
-workflow boundary; it does not edit managed skill copies. A missing or duplicate
-marker is an explicit failure, not an invitation to guess ownership.
+The shared skills define the stable marker, canonical schema, trusted publisher
+identity, authenticated first-marker bootstrap, compare-before-write protocol,
+per-PR serialization, atomic conditional writes, stale-write behavior, and the
+projection used for readiness fingerprinting. harmon-init consumes that contract
+and tests the workflow boundary; it does not edit managed skill copies. A missing,
+untrusted, or duplicate marker is an explicit failure, except for the
+authenticated first-marker creation transition.
 
 ### Exclude a narrow schema projection from readiness
 
@@ -82,8 +85,10 @@ assuming a rerun can reinterpret a body-only event as a title edit.
   schema validation and test mutations to every excluded/non-excluded surface.
 - [Risk] Root/template drift reintroduces inconsistent gates → [Mitigation]
   maintain both twins and make parity a definition-of-done test.
-- [Risk] Concurrent comment updates lose progress → [Mitigation] updater-side
-  compare-and-write with stale-read refusal, owned by harmon-devkit.
+- [Risk] Concurrent or forged comment updates lose progress or impersonate the
+  publisher → [Mitigation] authenticate the publisher identity, serialize by
+  pull request, and use an atomic conditional write with stale-read refusal,
+  owned by harmon-devkit.
 
 ## Migration Plan
 
@@ -99,9 +104,11 @@ File a separate harmon-devkit issue with this scope:
 
 > Add a marker-owned pull-request progress comment and updater for multi-stage
 > workflow bookkeeping. Define a stable ownership marker and schema with
-> canonical stage, round, current-result, and next-action sections. Implement
-> idempotent compare-before-write updates that preserve human-authored content,
-> reject missing or duplicate markers, and refuse stale concurrent writes. Export
+> canonical stage, round, current-result, and next-action sections. Authenticate
+> the trusted publisher identity, safely bootstrap exactly one first marker, and
+> implement idempotent compare-before-write updates that preserve human-authored
+> content. Serialize updates per pull request and use atomic conditional writes;
+> reject untrusted or duplicate markers and refuse stale concurrent writes. Export
 > a readiness-fingerprint projection that excludes only schema-validated,
 > non-authoritative progress fields in that owned comment; keep review findings,
 > replies, deferred findings, and every non-marker comment authoritative. Add

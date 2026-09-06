@@ -9,8 +9,9 @@ so bookkeeping changes do not retrigger validation or weaken readiness evidence.
 
 The progress record MUST be one top-level comment containing a stable ownership
 marker and canonical sections for stage, round, current result, and next action.
-The marker MUST be unique to the pull request and distinguish machine-owned
-progress from human-authored content.
+The marker MUST be unique to the pull request, and the comment's immutable
+GitHub author/App identity MUST match the configured trusted publisher. Marker
+text and schema validation alone MUST NOT establish ownership.
 
 #### Scenario: `test_progress_comment_has_canonical_sections`
 - **Given** a pull request passes through two or more workflow stages
@@ -22,36 +23,52 @@ progress from human-authored content.
 The updater MUST compare the canonical rendered content before writing, MUST
 leave unchanged content untouched, MUST preserve content outside the owned
 sections, and MUST refuse to proceed when the ownership marker is missing or
-duplicated. Concurrent updates MUST not silently overwrite a newer valid
-progress record.
+duplicated. An authenticated publisher MUST be able to create the first marker
+when none exists, using an atomic create-or-recheck operation that refuses if a
+competing marker appears. Concurrent updates MUST not silently overwrite a
+newer valid progress record: the updater MUST serialize updates per pull
+request and use an atomic conditional write (for example, an ETag/If-Match
+precondition), retrying only after a fresh read and refusing on a stale
+precondition.
 
 #### Scenario: `test_progress_update_is_compare_before_write_and_preserves_humans`
 - **Given** an owned comment contains human-authored content and the requested canonical progress is unchanged
 - **When** the updater runs
 - **Then** it performs no write and leaves the human-authored content intact
 
-#### Scenario: `test_progress_update_rejects_missing_or_duplicate_markers`
-- **Given** a pull request has zero or more than one ownership marker
+#### Scenario: `test_progress_update_bootstraps_one_authenticated_marker`
+- **Given** an authenticated trusted publisher finds no ownership marker
+- **When** it initializes progress and a competing marker does not appear
+- **Then** it creates exactly one marker-owned comment and subsequent updates target it
+
+#### Scenario: `test_progress_update_rejects_untrusted_or_duplicate_markers`
+- **Given** a pull request has a marker authored by an untrusted identity, or
+  has zero or more than one trusted ownership marker
 - **When** the updater searches for its target comment
-- **Then** it fails closed without creating or modifying a comment
+- **Then** it fails closed without modifying any existing comment or creating a
+  second marker
 
 #### Scenario: `test_progress_update_refuses_concurrent_stale_write`
 - **Given** two updates read the same prior comment and one update commits first
-- **When** the second update attempts its compare-and-write
-- **Then** the second update detects the changed source and refuses to overwrite it
+- **When** the second update attempts its conditional compare-and-write
+- **Then** serialization or the atomic precondition detects the changed source
+  and the second update refuses to overwrite it
 
 ### Requirement: Guard workflows run only for authoritative pull-request edits
 
 Release-content and closing-keyword validation MUST run for opened,
-synchronized, reopened, and title-edited pull requests. A body-only edit MUST
-not start either guard job. The event filter MUST distinguish title edits from
-body edits using the presence of the pull-request title change payload, because
+synchronized, reopened, title-edited, and body-edited pull requests. A
+body-only edit remains authoritative because both guards consume PR-body
+content; it MUST not be treated as marker bookkeeping. Marker comment updates
+use the comment event surface and MUST not start either guard job. The event
+filter MUST distinguish title edits from comment updates, because
 `pull_request.edited` has no event-level title filter.
 
-#### Scenario: `test_body_only_edit_starts_no_guard_job`
+#### Scenario: `test_body_only_edit_runs_authoritative_guards`
 - **Given** a pull request head and title are unchanged and only the body changes
 - **When** the edited event is evaluated
-- **Then** neither guard job starts
+- **Then** both body-consuming guard jobs start and the aggregate verify job
+  receives their successful results
 
 #### Scenario: `test_title_only_edit_reruns_release_content_guard`
 - **Given** a pull request head and changed files are unchanged
@@ -62,6 +79,12 @@ body edits using the presence of the pull-request title change payload, because
 - **Given** a pull request title and body change in one edited event
 - **When** the event is evaluated
 - **Then** every applicable guard runs exactly once
+
+#### Scenario: `test_progress_comment_edit_runs_no_body_guard`
+- **Given** a pull request body and head are unchanged and only the trusted
+  marker comment changes
+- **When** the comment event is evaluated
+- **Then** neither body guard nor the aggregate verify job starts a new run
 
 #### Scenario: `test_open_sync_reopen_trigger_guards`
 - **Given** a pull request event is opened, synchronized, or reopened
@@ -89,7 +112,9 @@ other pull-request content MUST remain authoritative fingerprint inputs.
 
 Updating marker-owned progress after a clean code-head validation MUST create no
 new required guard check and MUST NOT invalidate otherwise-current readiness
-evidence.
+evidence. The aggregate verify job MUST continue to require successful
+closing-keyword validation for every authoritative pull-request edit, including
+body-only edits.
 
 #### Scenario: `test_post_validation_progress_update_preserves_readiness`
 - **Given** all required code-head validation is clean and readiness evidence is current
