@@ -21,11 +21,17 @@ progress surface whose updates are distinguishable from authoritative PR edits.
   marker bookkeeping to the comment event surface so progress-only edits do not
   enqueue those guard jobs.
 - Add root/template workflow parity tests for title-only, body-only, combined,
-  synchronized, malformed-marker, and concurrent-update fixtures.
+  comment-only, base-only `pull_request.edited`, synchronized, and reopened
+  fixtures. Root/template tests own workflow-event fixtures; harmon-devkit owns
+  malformed-marker, lookalike, timestamp, generation, and concurrent-updater
+  fixtures.
 - Define readiness fingerprinting so only schema-validated, non-authoritative
   progress fields in the owned marker are excluded; reviews, replies, deferred
   findings, and all other comments remain authoritative.
 - Record the final human replay of PR #1070 as a release verification criterion.
+- Require the harmon-devkit release and vendored fingerprint projection before
+  accepting the harmon-init workflow change; existing workflow behavior is a
+  regression assertion, not a no-op rewrite prescription.
 
 The marker format, updater, and readiness-fingerprint implementation belong to
 the vendored shared skills in harmon-devkit and are deliberately not edited in
@@ -76,3 +82,12 @@ resolved by this proposal and must be settled before implementation:
   `If-Match`, or lock primitive in the current contract. Decide the concurrency
   mechanism—such as single-writer by construction, generation with read-back
   verification, or a GitHub App check-run lock—before implementation.
+- **Q3. Deferred-findings ticks.** Ticking a deferred finding edits the PR body
+  and retriggers its guards. Decide whether dispositions move to an
+  authoritative field in the owned comment or whether this capability and the
+  PR #1070 replay criterion are narrowed before implementation.
+- **Q4. First-marker bootstrap.** Creating the first marker changes the
+  fingerprint. Decide whether bootstrap occurs before evidence capture, applies
+  only to new PRs, or has explicit first-creation projection semantics.
+- **Q5. Rollback state handoff.** Define the quiescence or checkpoint that
+  prevents rollback from regressing the visible ledger to a stale body state.

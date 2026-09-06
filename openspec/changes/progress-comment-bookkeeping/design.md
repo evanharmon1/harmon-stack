@@ -55,6 +55,10 @@ A missing or duplicate trusted marker is an explicit failure, except for the
 authenticated first-marker creation transition. Untrusted lookalikes remain
 authoritative content but do not participate in target discovery.
 
+Any GitHub App-based lock is an explicit Copier opt-in, defaults off, and must
+document its installation, account, and private-repository limitations. The
+default mechanism must require no App installation or other paid/trial SaaS.
+
 ### Exclude a narrow schema projection from readiness
 
 The fingerprint projection removes only fields declared non-authoritative by the
@@ -67,11 +71,12 @@ the entire PR body.
 
 ### Test both layers and event shapes
 
-Fixtures model title-only, body-only, combined, comment-only,
-opened/synchronized/reopened events at the harmon-init workflow boundary.
-Harmon-devkit owns malformed-marker, lookalike, timestamp, generation, and
-concurrent-update fixtures. Root/template parity tests compare the rendered
-behavior rather than assuming filename equality for Jinja files.
+Fixtures model title-only, body-only, combined, comment-only, base-only
+`pull_request.edited`, and opened/synchronized/reopened events at the
+harmon-init workflow boundary. Harmon-devkit owns malformed-marker, lookalike,
+timestamp, generation, and concurrent-update fixtures. Root/template parity
+tests compare the rendered behavior rather than assuming filename equality for
+Jinja files; existing workflow behavior is asserted as regression coverage.
 The historical PR #1070 replay remains a maintainer verification item, not an
 automated claim of live GitHub state.
 
@@ -98,8 +103,9 @@ assuming a rerun can reinterpret a body-only event as a title edit.
 
 ## Migration Plan
 
-Land and release the harmon-devkit marker/updater and fingerprint projection,
-sync that released version into the consuming skills, and only then accept the
+The maintainer must first land and release the harmon-devkit marker/updater and
+fingerprint projection, sync that released version into the consuming skills,
+and only then accept the
 harmon-init workflow/test changes. The release and vendored sync are rollout
 prerequisites: until they are present, the existing whole-comment readiness
 fingerprint would still invalidate progress updates, so the PR #1070 replay
@@ -141,7 +147,19 @@ questions rather than resolved here:
 - **Q2. Atomic comment updates:** choose a concurrency mechanism that the
   GitHub issue-comment API can support before implementation; the current
   alternatives are single-writer by construction, generation with read-back
-  verification, or a GitHub App check-run lock.
+  verification, or a GitHub App check-run lock. If the App option is selected,
+  it is an explicit opt-in with documented limitations; the default remains
+  installation-free.
 
 The remaining implementation choices belong inside the harmon-devkit follow-on
-after Q1 and Q2 are settled.
+after Q1–Q5 are settled. Any settlement must update the affected requirements,
+scenarios, and follow-on scope in this change before implementation proceeds.
+
+## Open design questions
+
+- **Q3. Deferred-findings ticks:** decide whether body ticks move to the owned
+  comment or whether the capability and PR #1070 replay criterion are narrowed.
+- **Q4. First-marker bootstrap:** decide the evidence-capture ordering,
+  new-PR-only rollout, or explicit first-creation projection semantics.
+- **Q5. Rollback state handoff:** define the quiescence or checkpoint that
+  prevents a stale body ledger from regressing the visible marker ledger.

@@ -166,14 +166,22 @@ and readiness behavior MUST work unchanged after rollback.
 
 The root workflows and their Copier-rendered template twins MUST implement the
 same trigger behavior. Root/template tests MUST cover title-only edits,
-body-only edits, combined edits, comment events, and synchronized heads. The
-harmon-devkit updater tests MUST cover malformed markers and concurrent comment
-updates.
+body-only edits, combined edits, comment events, base-only
+`pull_request.edited` payloads, and synchronized heads. The harmon-devkit
+updater tests MUST cover malformed markers, lookalikes, timestamps, generation,
+and concurrent comment updates; the root/template suite owns workflow-event
+fixtures only.
 
 #### Scenario: `test_root_template_progress_workflow_parity`
 - **Given** the root workflow and its rendered template twin
 - **When** the parity suite evaluates all progress-edit fixtures
 - **Then** both layers produce the same expected trigger and authority results
+
+#### Scenario: `test_base_only_edit_runs_authoritative_guards`
+- **Given** a pull request head, title, body, and changed files are unchanged
+- **When** only the base branch changes in a `pull_request.edited` payload
+- **Then** the authoritative guard jobs run and the aggregate verify job keeps
+  its successful closing-keyword dependency
 
 ### Requirement: Human replay verifies the historical failure mode
 
