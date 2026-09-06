@@ -58,6 +58,7 @@ walk(if type == "object" then with_entries(select(
   (.key != "id") and (.key != "node_id") and (.key != "actor_id") and
   (.key != "integration_id") and (.key != "created_at") and
   (.key != "updated_at") and (.key != "_links")
+  and (.key != "current_user_can_bypass")
 )) else . end)
 | .rules |= sort_by(.type)
 | .rules |= map(if .type == "required_status_checks" then
@@ -65,8 +66,8 @@ walk(if type == "object" then with_entries(select(
   else . end)
 '''
 
-jq -e "$normalize" "$ruleset_file" >"$tmp_dir/file.normalized.json" 2>/dev/null || die_unavailable "checked-in ruleset is not valid JSON"
-jq -e "$normalize" "$tmp_dir/live.json" >"$tmp_dir/live.normalized.json" 2>/dev/null || die_unavailable "live ruleset is not valid JSON"
+jq -S -e "$normalize" "$ruleset_file" >"$tmp_dir/file.normalized.json" 2>/dev/null || die_unavailable "checked-in ruleset is not valid JSON"
+jq -S -e "$normalize" "$tmp_dir/live.json" >"$tmp_dir/live.normalized.json" 2>/dev/null || die_unavailable "live ruleset is not valid JSON"
 
 if diff -u "$tmp_dir/file.normalized.json" "$tmp_dir/live.normalized.json" >"$tmp_dir/diff"; then
     echo "RULESET AUDIT CLEAN: ${ruleset_name} (${repo})"
