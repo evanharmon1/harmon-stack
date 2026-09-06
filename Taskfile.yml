@@ -90,6 +90,7 @@ tasks:
       - task: test:label-registry
       - task: test:tasks
       - task: test:ci-results
+      - task: test:devcontainer-changed
       - task: test:output
       - task: test:status
       - task: test:gh-scopes
@@ -477,6 +478,11 @@ tasks:
     desc: Unit-test CI aggregate and closing-keyword fail-closed truth tables
     cmds:
       - ./scripts/test-ci-results.sh
+
+  test:devcontainer-changed:
+    desc: Unit-test the devcontainer-build.yml change detector (devcontainer-changed.sh)
+    cmds:
+      - ./scripts/test-devcontainer-changed.sh
 
   test:output:
     desc: Unit-test shared color/Unicode fallbacks and spinner cleanup

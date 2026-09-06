@@ -2360,6 +2360,49 @@ else
     [ ! -e .github/workflows/terraform.yml ] || err "terraform.yml rendered but include_terraform=false"
 fi
 
+# ── 9h2. The devcontainer-verify wedge guard ─────────────────────────
+# Same failure mode as the Terraform guard above, for the other workflow
+# promoted to a required status check (#1157): a filtered or non-reporting
+# workflow blocks the merge forever.
+dc_workflow=".github/workflows/devcontainer-build.yml"
+if [ -d .devcontainer ]; then
+    [ -f "$dc_workflow" ] || err "$dc_workflow missing (devcontainer=true)"
+    python3 - "$dc_workflow" <<'PY' || err "the devcontainer workflow would wedge a required devcontainer-verify check (see stderr)"
+import sys, pathlib, re
+
+text = pathlib.Path(sys.argv[1]).read_text()
+head = text.split("\njobs:", 1)[0]
+problems = []
+if re.search(r"^\s+paths(-ignore)?:", head, re.M):
+    problems.append("the `on:` block has a paths filter — a required check that never reports blocks the merge")
+for trigger in ("push:", "pull_request:", "merge_group:"):
+    if not re.search(r"^\s+%s" % re.escape(trigger), head, re.M):
+        problems.append(f"the `on:` block is missing the {trigger[:-1]} trigger")
+jobs = re.split(r"^(?=  [A-Za-z0-9_-]+:$)", text, flags=re.M)
+verify_job = next((j for j in jobs if j.startswith("  devcontainer-verify:")), None)
+if not verify_job:
+    problems.append("has no devcontainer-verify aggregate job")
+elif not re.search(r"^\s+if:\s*always\(\)", verify_job, re.M):
+    problems.append("devcontainer-verify has no `if: always()` — it would not report when a leaf job is skipped")
+merge_group_job = next((j for j in jobs if j.startswith("  build-merge-group:")), None)
+if not merge_group_job:
+    problems.append("has no build-merge-group job — merge_group would run the credentialed build job instead")
+elif "packages:" in merge_group_job:
+    problems.append("build-merge-group declares a `packages:` permission — it must hold none at all")
+elif "docker/login-action" in merge_group_job:
+    problems.append("build-merge-group has a docker/login-action step — merge_group must never authenticate")
+for problem in problems:
+    print(f"  {problem}", file=sys.stderr)
+sys.exit(1 if problems else 0)
+PY
+    grep -q '"context": "devcontainer-verify"' '.github/Branch Protection Ruleset - Protect Main.json' ||
+        err "ruleset does not require devcontainer-verify (devcontainer=true)"
+else
+    [ ! -e "$dc_workflow" ] || err "devcontainer-build.yml rendered but devcontainer=false"
+    ! grep -q '"context": "devcontainer-verify"' '.github/Branch Protection Ruleset - Protect Main.json' ||
+        err "ruleset requires devcontainer-verify but this profile has no devcontainer workflow — every PR would wedge"
+fi
+
 # ── 9i. The task tier boundary: port-free vs. port-binding ──────────
 # `check`/`build`/`test`/`verify` must never bind a port — that is what lets N
 # agents in N worktrees run the definition-of-done gate concurrently. `test:e2e`
