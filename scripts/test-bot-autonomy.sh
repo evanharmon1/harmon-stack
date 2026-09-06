@@ -1230,4 +1230,136 @@ if BOT_AUTONOMY_REGISTRY="$new_harness_registry" BOT_AUTONOMY_CONFIG_DIR="$stale
     fail "coverage passed with copilot-cli/pi/oh-my-pi covered by BOTH a module and a stale unsupported entry"
 fi
 
+echo "==> 21. ensure-antigravity-cli.sh: the system-binary-sufficient early return reconciles only a leftover agy that would break a later replacement (#1171)"
+ensure_script="${repo_root}/.devcontainer/config/ensure-antigravity-cli.sh"
+[ -f "$ensure_script" ] || fail "ensure-antigravity-cli.sh missing at ${ensure_script}"
+agy21_sys_bin="${work_dir}/agy21-system-binary"
+printf '#!/bin/sh\necho 1.1.11\n' >"$agy21_sys_bin"
+chmod +x "$agy21_sys_bin"
+# Every fixture below leaves ~/.local/bin/agy-real absent, so `[ -x "$real_bin" ]`
+# is false and the script falls through to the system-binary-sufficient early
+# return being exercised here — never the "reconcile an existing local copy"
+# branch above it.
+agy21_run() {
+    HOME="$1" HARMON_BOT_AUTONOMY_ANTIGRAVITY=enabled \
+        HARMON_ANTIGRAVITY_SYSTEM_BINARY="$agy21_sys_bin" bash "$ensure_script" >/dev/null
+}
+
+# A dangling symlink (agy-real removed some other way, or never existed) is
+# exactly the invariant violation #1171 exists to close.
+agy21_dangling_home="${work_dir}/agy21-dangling-home"
+mkdir -p "${agy21_dangling_home}/.local/bin"
+ln -s "${agy21_dangling_home}/.local/bin/agy-real" "${agy21_dangling_home}/.local/bin/agy"
+agy21_run "$agy21_dangling_home"
+[ ! -L "${agy21_dangling_home}/.local/bin/agy" ] && [ ! -e "${agy21_dangling_home}/.local/bin/agy" ] ||
+    fail "the system-binary-sufficient early return left a dangling agy symlink in place"
+
+# A symlink to an existing DIRECTORY is not dangling, but bot-autonomy/
+# antigravity.sh's install_wrapper does \`mv -f \$tmp \$AGY_LINK\`, which lands
+# INSIDE an existing directory target instead of replacing the link — this
+# must be reconciled here too, before install_wrapper ever runs.
+agy21_dir_home="${work_dir}/agy21-dir-home"
+mkdir -p "${agy21_dir_home}/.local/bin/some-directory"
+ln -s "${agy21_dir_home}/.local/bin/some-directory" "${agy21_dir_home}/.local/bin/agy"
+agy21_run "$agy21_dir_home"
+[ ! -L "${agy21_dir_home}/.local/bin/agy" ] && [ ! -e "${agy21_dir_home}/.local/bin/agy" ] ||
+    fail "the system-binary-sufficient early return left a symlink-to-directory agy in place"
+[ -d "${agy21_dir_home}/.local/bin/some-directory" ] ||
+    fail "removing the agy symlink also removed the directory its target named"
+
+# A previously-installed, genuinely valid wrapper (installed by a real
+# antigravity.sh apply, exactly as a container rebuild would find it in the
+# persistent volume) must survive byte-for-byte: this branch installs
+# nothing to replace it with, and the #1168 revert's own defect was deleting
+# a still-valid wrapper before its replacement existed.
+agy21_wrapper_home="${work_dir}/agy21-wrapper-home"
+mkdir -p "${agy21_wrapper_home}/.local/bin"
+HOME="$agy21_wrapper_home" HARMON_BOT_AUTONOMY_ANTIGRAVITY=enabled \
+    BOT_AUTONOMY_ANTIGRAVITY_SETTINGS="${agy21_wrapper_home}/.gemini/antigravity-cli/settings.json" \
+    bash "$agy_module" apply >/dev/null
+[ -f "${agy21_wrapper_home}/.local/bin/agy" ] ||
+    fail "fixture setup: expected a real wrapper installed before exercising the early return"
+agy21_wrapper_before="$(cat "${agy21_wrapper_home}/.local/bin/agy")"
+agy21_run "$agy21_wrapper_home"
+[ -e "${agy21_wrapper_home}/.local/bin/agy" ] ||
+    fail "the system-binary-sufficient early return deleted a previously-installed valid wrapper"
+[ ! -L "${agy21_wrapper_home}/.local/bin/agy" ] ||
+    fail "the system-binary-sufficient early return replaced a valid wrapper with a symlink"
+[ "$(cat "${agy21_wrapper_home}/.local/bin/agy")" = "$agy21_wrapper_before" ] ||
+    fail "the system-binary-sufficient early return modified a valid wrapper's content"
+
+# An arbitrary regular file that is NOT the wrapper (a foreign or stale file)
+# is left alone too — this branch does not distinguish a "valid" regular
+# file from any other; it only ever removes a symlink.
+agy21_file_home="${work_dir}/agy21-file-home"
+mkdir -p "${agy21_file_home}/.local/bin"
+printf 'not a wrapper, just a stray file\n' >"${agy21_file_home}/.local/bin/agy"
+chmod 0644 "${agy21_file_home}/.local/bin/agy"
+agy21_file_before="$(cat "${agy21_file_home}/.local/bin/agy")"
+agy21_run "$agy21_file_home"
+[ -f "${agy21_file_home}/.local/bin/agy" ] && [ ! -L "${agy21_file_home}/.local/bin/agy" ] ||
+    fail "the system-binary-sufficient early return removed an arbitrary regular file at agy"
+[ "$(cat "${agy21_file_home}/.local/bin/agy")" = "$agy21_file_before" ] ||
+    fail "the system-binary-sufficient early return modified an arbitrary regular file at agy"
+
+# A symlink whose target EXISTS (a file, not a directory) is the negative
+# case the dangling/directory guards must not over-match: mutation-testing
+# a guard that removed every symlink unconditionally needs this fixture to
+# fail, since fixtures A and B alone cannot tell "removes only the two
+# breaking shapes" apart from "removes every symlink".
+agy21_symfile_home="${work_dir}/agy21-symfile-home"
+mkdir -p "${agy21_symfile_home}/.local/bin"
+printf '#!/bin/sh\necho REAL\n' >"${agy21_symfile_home}/.local/bin/some-other-file"
+chmod +x "${agy21_symfile_home}/.local/bin/some-other-file"
+ln -s "${agy21_symfile_home}/.local/bin/some-other-file" "${agy21_symfile_home}/.local/bin/agy"
+agy21_run "$agy21_symfile_home"
+[ -L "${agy21_symfile_home}/.local/bin/agy" ] ||
+    fail "the system-binary-sufficient early return replaced a symlink to an existing file"
+[ "$(readlink "${agy21_symfile_home}/.local/bin/agy")" = "${agy21_symfile_home}/.local/bin/some-other-file" ] ||
+    fail "the system-binary-sufficient early return repointed a symlink to an existing file"
+
+# A symlink whose target exists but is NOT executable is still "a symlink to
+# an existing file" per the guard — it is a tamper-only shape (every write
+# path in this script installs agy-real at mode 0755) that #1171's own
+# acceptance criteria scope out of this fix, and PATH search itself skips a
+# non-executable match and falls through to the real system binary (verified
+# separately; not this script's concern) rather than being silently
+# misdirected. Confirms the guard keys off dangling-or-directory, never
+# executability.
+agy21_symfile_noexec_home="${work_dir}/agy21-symfile-noexec-home"
+mkdir -p "${agy21_symfile_noexec_home}/.local/bin"
+printf '#!/bin/sh\necho REAL\n' >"${agy21_symfile_noexec_home}/.local/bin/agy-real"
+chmod -x "${agy21_symfile_noexec_home}/.local/bin/agy-real"
+ln -s "${agy21_symfile_noexec_home}/.local/bin/agy-real" "${agy21_symfile_noexec_home}/.local/bin/agy"
+agy21_run "$agy21_symfile_noexec_home"
+[ -L "${agy21_symfile_noexec_home}/.local/bin/agy" ] ||
+    fail "the system-binary-sufficient early return replaced a symlink to an existing but non-executable file"
+[ "$(readlink "${agy21_symfile_noexec_home}/.local/bin/agy")" = "${agy21_symfile_noexec_home}/.local/bin/agy-real" ] ||
+    fail "the system-binary-sufficient early return repointed a symlink to an existing but non-executable file"
+
+echo "==> 22. antigravity.sh: a settings-apply failure aborts BEFORE install_wrapper, so the prior valid wrapper survives"
+agy22_home="${work_dir}/agy22-survive-home"
+mkdir -p "${agy22_home}/.local/bin"
+HOME="$agy22_home" HARMON_BOT_AUTONOMY_ANTIGRAVITY=enabled \
+    BOT_AUTONOMY_ANTIGRAVITY_SETTINGS="${agy22_home}/.gemini/antigravity-cli/settings.json" \
+    bash "$agy_module" apply >/dev/null
+[ -f "${agy22_home}/.local/bin/agy" ] ||
+    fail "fixture setup: expected a real wrapper installed before simulating a settings-apply failure"
+agy22_before="$(cat "${agy22_home}/.local/bin/agy")"
+agy22_failing_apply="${work_dir}/agy22-failing-apply-antigravity-settings.sh"
+printf '#!/bin/sh\necho "simulated settings-apply failure" >&2\nexit 1\n' >"$agy22_failing_apply"
+chmod +x "$agy22_failing_apply"
+if HOME="$agy22_home" HARMON_BOT_AUTONOMY_ANTIGRAVITY=enabled \
+    BOT_AUTONOMY_ANTIGRAVITY_APPLY_SCRIPT="$agy22_failing_apply" \
+    BOT_AUTONOMY_ANTIGRAVITY_SETTINGS="${agy22_home}/.gemini/antigravity-cli/settings.json" \
+    bash "$agy_module" apply >/dev/null 2>&1; then
+    fail "antigravity apply reported success despite a failing settings-apply step"
+fi
+[ -e "${agy22_home}/.local/bin/agy" ] ||
+    fail "a settings-apply failure deleted the prior valid wrapper before install_wrapper ever ran"
+[ ! -L "${agy22_home}/.local/bin/agy" ] ||
+    fail "a settings-apply failure left agy as a symlink instead of the prior wrapper"
+[ "$(cat "${agy22_home}/.local/bin/agy")" = "$agy22_before" ] ||
+    fail "a settings-apply failure modified the prior valid wrapper's content before aborting"
+
 echo "All bot-autonomy unit tests passed."
