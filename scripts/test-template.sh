@@ -2080,6 +2080,36 @@ for name in sorted(extra):
 sys.exit(1 if (missing or extra) else 0)
 PY
 
+python3 - <<'PY' || err "rendered ruleset or its documentation mirror lost the unattributed-changes approval flag"
+import json, pathlib, sys
+
+
+def pull_request_rule(spec, label):
+    rules = [r for r in spec.get("rules", []) if r.get("type") == "pull_request"]
+    if len(rules) != 1:
+        print(f"  {label} must contain exactly one pull_request rule", file=sys.stderr)
+        sys.exit(1)
+    return rules[0]
+
+
+real = json.loads(
+    pathlib.Path(".github/Branch Protection Ruleset - Protect Main.json").read_text()
+)
+doc = pathlib.Path("docs/architecture/branch-protection.md").read_text()
+start = doc.find("```json\n")
+end = doc.find("```", start + 8)
+if start < 0 or end < 0:
+    print("  branch-protection.md has no JSON mirror", file=sys.stderr)
+    sys.exit(1)
+mirrored = json.loads(doc[start + 8 : end])
+for spec, label in ((real, "rendered ruleset"), (mirrored, "documentation mirror")):
+    if pull_request_rule(spec, label)["parameters"].get(
+        "require_extra_approval_for_unattributed_changes"
+    ) is not True:
+        print(f"  {label} is missing the enabled unattributed-changes approval flag", file=sys.stderr)
+        sys.exit(1)
+PY
+
 if grep -Eq '^include_terraform:[[:space:]]+(true|yes)$' .copier-answers.yml; then
     [ -f .tflint.hcl ] || err ".tflint.hcl missing (include_terraform=true)"
     grep -q 'plugin "terraform"' .tflint.hcl || err ".tflint.hcl does not enable the bundled terraform ruleset"
