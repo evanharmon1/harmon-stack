@@ -7,6 +7,12 @@ reviews, top-level comments, inline comments, and review-thread resolution, so
 the new authority boundary must be narrow. The vendored `shepherd`, `gauntlet`,
 and `track-work` copies are managed by harmon-devkit and are not editable here.
 
+Marker rendering is data-only: activation phrases such as `@codex review`,
+`@claude ...`, and all other mentions are escaped or represented as structured
+non-activating text. This is required by the Codex trigger contract and
+`.github/workflows/claude-review.yml`, whose created-issue-comment trigger
+matches activation phrases.
+
 ## Goals / Non-Goals
 
 **Goals:**

@@ -39,8 +39,10 @@
       timestamp, generation, and concurrent-update fixtures to the harmon-devkit
       updater tests, not this workflow boundary.
 - [ ] 2.3 [BLOCKED BY 3.4] After the harmon-devkit release is published and
-      synced, run the maintainer replay of PR #1070 and record that the visible
-      progress correction starts no guard or readiness wait.
+      synced, reproduce the progress correction on a live draft with a clean
+      unchanged head, run the readiness gate before and after the marker update,
+      compare fingerprints, and record that no progress-only guard or readiness
+      wait starts. Keep PR #1070 as historical evidence only.
 
 - [ ] 2.4 In the harmon-devkit follow-on, test that validated marker timestamp
       changes do not change readiness fingerprints, while other comment
@@ -51,6 +53,15 @@
       prior-state rejection for delayed concurrent updates.
 - [ ] 2.7 Test rollback by restoring the previous skills pin and sync, then
       verifying the prior PR-body ledger writer works unchanged.
+
+- [ ] 2.8 In the harmon-devkit follow-on, render activation phrases such as
+      `@codex review` and `@claude ...` inert, and test that no review request
+      or workflow run is created from a next-action value containing one.
+- [ ] 2.9 In the harmon-devkit follow-on, bind conditional transitions to the
+      expected head SHA and test that a push race refuses without publishing.
+- [ ] 2.10 In the harmon-devkit follow-on, paginate marker discovery across
+      the complete issue-comments endpoint and test that a later-page marker
+      prevents duplicate initialization.
 
 ## 3. Harmon-devkit follow-on (separate issue; not implemented here)
 

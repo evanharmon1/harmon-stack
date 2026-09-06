@@ -28,7 +28,9 @@ progress surface whose updates are distinguishable from authoritative PR edits.
 - Define readiness fingerprinting so only schema-validated, non-authoritative
   progress fields in the owned marker are excluded; reviews, replies, deferred
   findings, and all other comments remain authoritative.
-- Record the final human replay of PR #1070 as a release verification criterion.
+- Require a maintainer replay on a live draft with a clean unchanged head,
+  readiness fingerprints before and after the marker update, and no
+  progress-only guard or readiness wait; PR #1070 remains historical evidence.
 - Require the harmon-devkit release and vendored fingerprint projection before
   accepting the harmon-init workflow change; existing workflow behavior is a
   regression assertion, not a no-op rewrite prescription.
@@ -72,6 +74,12 @@ the harmon-devkit follow-on scope with tests. Related
 upstream work is harmon-devkit issue #461 (latest-run-per-check, in progress)
 and issue #490 (`gh run rerun` replays the stored payload); those constraints inform the
 event and run-correlation design but are not implemented by this proposal.
+
+Marker rendering must be inert with respect to `@codex review`, `@claude ...`,
+and other mentions, because the Codex trigger contract and
+`.github/workflows/claude-review.yml` respond to activation phrases in created
+issue comments. The follow-on also requires head-SHA conditional transitions
+and fully paginated marker discovery.
 
 ## Open design questions
 

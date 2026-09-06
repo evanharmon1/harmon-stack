@@ -15,6 +15,12 @@ text and schema validation alone MUST NOT establish ownership. Lookalike marker
 text from other authors MUST remain ordinary authoritative comment content and
 MUST NOT block discovery of the trusted comment.
 
+The rendered marker text MUST be inert: activation phrases such as `@codex
+review`, `@claude ...`, and any other `@`-mention MUST be escaped or rendered as
+non-activating structured text. This protects the Codex trigger contract and
+the `.github/workflows/claude-review.yml` workflow, which starts on created
+issue comments containing activation phrases.
+
 #### Scenario: `test_progress_comment_has_canonical_sections`
 - **Given** a pull request passes through two or more workflow stages
 - **When** progress is published
@@ -40,6 +46,12 @@ request and use an atomic conditional write (for example, an ETag/If-Match
 precondition), retrying only after a fresh read and refusing on a stale
 precondition.
 
+Every conditional transition MUST carry the expected head SHA and re-read the
+pull-request head immediately before writing; a head mismatch MUST refuse the
+transition without publishing progress. Every marker discovery MUST paginate
+the issue-comments endpoint completely before deciding that zero, one, or many
+markers exist.
+
 #### Scenario: `test_progress_update_is_compare_before_write_and_preserves_humans`
 - **Given** an owned comment contains human-authored content and the requested canonical progress is unchanged
 - **When** the updater runs
@@ -63,6 +75,16 @@ precondition.
 - **When** the second update attempts its conditional compare-and-write
 - **Then** serialization or the atomic precondition detects the changed source
   and the second update refuses to overwrite it
+
+#### Scenario: `test_progress_update_refuses_head_race`
+- **Given** a conditional progress transition has read an expected head SHA
+- **When** the pull-request head advances before the write
+- **Then** the transition refuses and publishes no marker update
+
+#### Scenario: `test_marker_discovery_paginates_before_initialization`
+- **Given** the existing marker is returned on a later issue-comments page
+- **When** the initializer searches for markers
+- **Then** it reads all pages and does not create a duplicate marker
 
 ### Requirement: Guard workflows run only for authoritative pull-request edits
 
@@ -194,13 +216,15 @@ the root/template suite owns workflow-event fixtures only.
 - **Then** the authoritative guard jobs run and the aggregate verify job keeps
   its successful closing-keyword dependency
 
-### Requirement: Human replay verifies the historical failure mode
+### Requirement: Live reproduction verifies the historical failure mode
 
-Before this capability is accepted, a maintainer MUST replay the final progress
-correction from PR #1070 and confirm that the visible ledger updates without
-starting another release-content guard or readiness wait.
+Before this capability is accepted, a maintainer MUST reproduce the progress
+correction on a live draft pull request with a clean unchanged head, run the
+readiness gate before and after the marker update, and compare fingerprints.
+The merged PR #1070 remains historical evidence only.
 
-#### Scenario: `test_maintainer_replays_pr_1070_progress_correction`
-- **Given** the final PR #1070 progress correction is reproduced on an unchanged code head
+#### Scenario: `test_maintainer_replays_live_progress_correction`
+- **Given** a live draft pull request has a clean unchanged code head
 - **When** the marker-owned ledger is updated
-- **Then** the ledger is visible and no release guard or readiness wait is started
+- **Then** the readiness fingerprints before and after are equal and no
+  progress-only guard or readiness wait is started
