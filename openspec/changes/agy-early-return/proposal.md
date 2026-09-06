@@ -42,10 +42,13 @@ implements it.
   one of four states" requirement (and its scenarios) back to three states,
   drop the state-(d)/#1171 exception from every scenario that carries it, and
   narrow the "`install_wrapper` replaces cleanly" claim to the values it
-  actually replaces cleanly — a regular file or any symlink (a later
-  `ln -sfn` already replaces a symlink-to-directory cleanly on its own and
-  needed no such claim). A literal directory at `agy` or `agy-real` is out
-  of scope here, tracked by issue `#1179`.
+  actually replaces cleanly — a regular file or a symlink that does not
+  target a directory (a later `ln -sfn`, unlike `mv -f`, replaces a
+  symlink-to-directory cleanly on its own and needed no such claim; a
+  directory-targeting symlink is exactly the shape the early-return
+  reconcile above already removes on its own path). A literal directory at
+  `agy` or `agy-real`, or a directory-targeting symlink reached some other
+  way, is out of scope here, tracked by issue `#1179`.
 - `docs/guides/devcontainers.md` (+ its jinja `template/` twin): drop the
   state-(d)/#1171 caveat in the Antigravity section now that the early return
   self-heals a leftover that would otherwise block reconciliation.
