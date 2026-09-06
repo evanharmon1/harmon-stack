@@ -40,6 +40,21 @@ workflow, and add it back.
 `merge_queue` rule with `422 Invalid rule 'merge_queue'`. The UI import handles
 every rule type and is the GitHub-native way to apply an exported ruleset.
 
+### Auditing live ruleset drift
+
+Run `task audit:ruleset` after a template update or a manual ruleset change to
+compare the checked-in import file with the live ruleset named in it. The audit
+uses GitHub's read-only ruleset API, ignores server-owned ids and timestamps,
+sorts rules and required-check contexts, and prints a diff when policy fields
+drift. Exit status 2 means GitHub access, repository discovery, or ruleset
+lookup was unavailable; it is not a clean result.
+
+The audit is deliberately read-only. Apply a confirmed change manually in
+Settings → Rules → Rulesets → Protect Main, because the REST API is not a safe
+idempotent replacement: it can create duplicates and currently rejects the
+`merge_queue` rule. Re-run the audit after the UI change and update the checked-in
+import template separately when the intended policy changes.
+
 ## Dependabot and Renovate
 
 Routine updates and vulnerability-remediation PRs are owned by **Renovate**

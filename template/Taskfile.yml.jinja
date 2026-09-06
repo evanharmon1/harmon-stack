@@ -793,6 +793,11 @@ tasks:
     cmds:
       - ./scripts/test-ci-results.sh
 
+  audit:ruleset:
+    desc: Compare the checked-in branch ruleset with GitHub's live ruleset (read-only)
+    cmds:
+      - ./scripts/audit-ruleset.sh
+
   test:output:
     desc: Unit-test shared color/Unicode fallbacks and spinner cleanup
     cmds:
