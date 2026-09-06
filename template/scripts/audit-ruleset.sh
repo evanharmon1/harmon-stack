@@ -26,6 +26,15 @@ else
     https://github.com/* | http://github.com/*) repo="${remote_url#*github.com/}" ;;
     git@github.com:*) repo="${remote_url#git@github.com:}" ;;
     ssh://git@github.com/*) repo="${remote_url#ssh://git@github.com/}" ;;
+    ssh://git@github.com:*/*)
+        repo="${remote_url#ssh://git@github.com:}"
+        repo="${repo#*/}"
+        ;;
+    ssh://git@ssh.github.com/*) repo="${remote_url#ssh://git@ssh.github.com/}" ;;
+    ssh://git@ssh.github.com:*/*)
+        repo="${remote_url#ssh://git@ssh.github.com:}"
+        repo="${repo#*/}"
+        ;;
     *) die_unavailable "origin is not a GitHub repository" ;;
     esac
     repo="${repo%.git}"
