@@ -54,12 +54,8 @@ else
 fi
 
 normalize='''
-walk(if type == "object" then with_entries(select(
-  (.key != "id") and (.key != "node_id") and (.key != "actor_id") and
-  (.key != "integration_id") and (.key != "created_at") and
-  (.key != "updated_at") and (.key != "_links")
-  and (.key != "current_user_can_bypass")
-)) else . end)
+del(.id, .node_id, .created_at, .updated_at, ._links,
+  .current_user_can_bypass)
 | .rules |= sort_by(.type)
 | .rules |= map(if .type == "required_status_checks" then
     .parameters.required_status_checks |= sort_by(.context)

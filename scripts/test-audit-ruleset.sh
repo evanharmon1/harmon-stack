@@ -39,9 +39,15 @@ cp "$file" "$live"
 echo "==> extra live flag"
 jq '(.rules[] | select(.type == "pull_request") | .parameters.extra_fixture_flag) = true' "$live" >"$live.tmp"
 mv "$live.tmp" "$live"
-if run_audit >/dev/null; then
+if run_audit >"$tmp_dir/out"; then
     echo "FAIL: extra flag was reported clean" >&2
     exit 1
+else
+    status=$?
+    [ "$status" -eq 1 ] || {
+        echo "FAIL: extra flag exit was $status" >&2
+        exit 1
+    }
 fi
 cp "$file" "$live"
 
