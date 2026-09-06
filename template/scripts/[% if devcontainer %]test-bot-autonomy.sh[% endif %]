@@ -1318,6 +1318,25 @@ agy21_run "$agy21_symfile_home"
 [ "$(readlink "${agy21_symfile_home}/.local/bin/agy")" = "${agy21_symfile_home}/.local/bin/some-other-file" ] ||
     fail "the system-binary-sufficient early return repointed a symlink to an existing file"
 
+# A symlink whose target exists but is NOT executable is still "a symlink to
+# an existing file" per the guard — it is a tamper-only shape (every write
+# path in this script installs agy-real at mode 0755) that #1171's own
+# acceptance criteria scope out of this fix, and PATH search itself skips a
+# non-executable match and falls through to the real system binary (verified
+# separately; not this script's concern) rather than being silently
+# misdirected. Confirms the guard keys off dangling-or-directory, never
+# executability.
+agy21_symfile_noexec_home="${work_dir}/agy21-symfile-noexec-home"
+mkdir -p "${agy21_symfile_noexec_home}/.local/bin"
+printf '#!/bin/sh\necho REAL\n' >"${agy21_symfile_noexec_home}/.local/bin/agy-real"
+chmod -x "${agy21_symfile_noexec_home}/.local/bin/agy-real"
+ln -s "${agy21_symfile_noexec_home}/.local/bin/agy-real" "${agy21_symfile_noexec_home}/.local/bin/agy"
+agy21_run "$agy21_symfile_noexec_home"
+[ -L "${agy21_symfile_noexec_home}/.local/bin/agy" ] ||
+    fail "the system-binary-sufficient early return replaced a symlink to an existing but non-executable file"
+[ "$(readlink "${agy21_symfile_noexec_home}/.local/bin/agy")" = "${agy21_symfile_noexec_home}/.local/bin/agy-real" ] ||
+    fail "the system-binary-sufficient early return repointed a symlink to an existing but non-executable file"
+
 echo "==> 22. antigravity.sh: a settings-apply failure aborts BEFORE install_wrapper, so the prior valid wrapper survives"
 agy22_home="${work_dir}/agy22-survive-home"
 mkdir -p "${agy22_home}/.local/bin"
