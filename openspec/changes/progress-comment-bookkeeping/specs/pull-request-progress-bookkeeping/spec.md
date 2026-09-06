@@ -66,24 +66,33 @@ precondition.
 
 ### Requirement: Guard workflows run only for authoritative pull-request edits
 
-Release-content and closing-keyword validation MUST run for opened,
-synchronized, reopened, title-edited, and body-edited pull requests. A
-body-only edit remains authoritative because both guards consume PR-body
-content; it MUST not be treated as marker bookkeeping. Marker comment updates
-use the comment event surface and MUST not start either guard job. The event
-filter MUST distinguish title edits from comment updates, because
-`pull_request.edited` has no event-level title filter.
+For pull requests currently eligible for each guard, release-content and
+closing-keyword validation MUST run for opened, synchronized, reopened,
+title-edited, and body-edited pull requests. The release-content guard's
+existing fork and Renovate/Dependabot exclusions remain in force; the
+closing-keyword guard retains its own eligibility rules. A body-only edit
+remains authoritative because the applicable guards consume PR-body content; it
+MUST not be treated as marker bookkeeping. Marker comment updates use the
+comment event surface and MUST not start either guard job. The event filter MUST
+distinguish title edits from comment updates, because `pull_request.edited` has
+no event-level title filter, and tests MUST not execute PR-controlled Taskfile
+code on a self-hosted runner.
+
+The aggregate `verify` job MUST require only the successful `closing-keywords`
+job from its own workflow; the separate release-content workflow is not an
+aggregate dependency.
 
 #### Scenario: `test_body_only_edit_runs_authoritative_guards`
 - **Given** a pull request head and title are unchanged and only the body changes
 - **When** the edited event is evaluated
-- **Then** both body-consuming guard jobs start and the aggregate verify job
-  receives their successful results
+- **Then** each applicable body-consuming guard starts and the aggregate verify
+  job receives the successful closing-keyword result
 
 #### Scenario: `test_title_only_edit_reruns_release_content_guard`
-- **Given** a pull request head and changed files are unchanged
+- **Given** an eligible pull request head and changed files are unchanged
 - **When** the title changes and the event includes `changes.title`
-- **Then** release-content validation runs exactly once and can replace the prior status with the expected title result
+- **Then** release-content validation runs exactly once and can replace the
+  prior status with the expected title result
 
 #### Scenario: `test_combined_edit_runs_guards`
 - **Given** a pull request title and body change in one edited event
@@ -165,12 +174,14 @@ and readiness behavior MUST work unchanged after rollback.
 ### Requirement: Root and template behavior stay equivalent
 
 The root workflows and their Copier-rendered template twins MUST implement the
-same trigger behavior. Root/template tests MUST cover title-only edits,
-body-only edits, combined edits, comment events, base-only
-`pull_request.edited` payloads, and synchronized heads. The harmon-devkit
-updater tests MUST cover malformed markers, lookalikes, timestamps, generation,
-and concurrent comment updates; the root/template suite owns workflow-event
-fixtures only.
+same trigger behavior. In profiles where `use_release_please` is true and
+`release_content_paths` is non-empty, root/template tests MUST cover the
+release-guard event matrix: title-only edits, body-only edits, combined edits,
+comment events, base-only `pull_request.edited` payloads, and synchronized
+heads. Profiles that omit `release-content-guard.yml` still MUST test
+closing-keyword behavior. The harmon-devkit updater tests MUST cover malformed
+markers, lookalikes, timestamps, generation, and concurrent comment updates;
+the root/template suite owns workflow-event fixtures only.
 
 #### Scenario: `test_root_template_progress_workflow_parity`
 - **Given** the root workflow and its rendered template twin

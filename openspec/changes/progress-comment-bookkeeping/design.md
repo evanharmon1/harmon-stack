@@ -134,7 +134,10 @@ File a separate harmon-devkit issue with this scope:
 > non-authoritative progress fields in that owned comment; keep review findings,
 > replies, deferred findings, and every non-marker comment authoritative. Add
 > tests for malformed markers, concurrent updates, idempotence, and all
-> authoritative-surface mutations. Do not move deferred-finding ownership.
+> authoritative-surface mutations. Update the standalone readiness fingerprint
+> fallback in `.claude/skills/standardize-repo/SKILL.md` for targets without
+> `shepherd`, and test that fallback against marker progress and authoritative
+> comment changes. Do not move deferred-finding ownership.
 
 ## Open Questions
 

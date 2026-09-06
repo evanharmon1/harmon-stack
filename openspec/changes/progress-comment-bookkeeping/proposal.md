@@ -64,7 +64,11 @@ repositories have a testable handoff.
 This affects `.github/workflows/release-content-guard.yml`, the corresponding
 Copier template workflow, `.github/workflows/build.yml`'s `closing-keywords`
 job, and their workflow tests. It also establishes an interface consumed by
-the harmon-devkit `shepherd`, `gauntlet`, and `track-work` skills. Related
+the harmon-devkit `shepherd`, `gauntlet`, `track-work`, and `standardize-repo`
+skills. The standalone readiness-fingerprint fallback in
+`.claude/skills/standardize-repo/SKILL.md` (used when `shepherd` is absent and
+currently hashing every top-level comment body and `updated_at`) is included in
+the harmon-devkit follow-on scope with tests. Related
 upstream work is harmon-devkit issue #461 (latest-run-per-check, in progress)
 and issue #490 (`gh run rerun` replays the stored payload); those constraints inform the
 event and run-correlation design but are not implemented by this proposal.

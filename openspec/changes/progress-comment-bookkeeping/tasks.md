@@ -38,7 +38,8 @@
       covers the base-only edited payload; assign malformed-marker, lookalike,
       timestamp, generation, and concurrent-update fixtures to the harmon-devkit
       updater tests, not this workflow boundary.
-- [ ] 2.3 Run the maintainer replay of PR #1070 and record that the visible
+- [ ] 2.3 [BLOCKED BY 3.4] After the harmon-devkit release is published and
+      synced, run the maintainer replay of PR #1070 and record that the visible
       progress correction starts no guard or readiness wait.
 
 - [ ] 2.4 In the harmon-devkit follow-on, test that validated marker timestamp
@@ -74,3 +75,6 @@
 - [ ] 4.1 Run `task spec:validate`.
 - [ ] 4.2 Run `task check`, `task verify`, and `task security` in the
       foreground with bounded timeouts.
+- [ ] 4.3 Run `task audit:dogfood`, review its root/template diff, and record
+      any intentional divergence before accepting the change; structural parity
+      alone does not inspect edits inside workflow task bodies.
