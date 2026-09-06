@@ -8,9 +8,10 @@ This document explains the branch protection ruleset applied to `main` and how i
 
 An importable copy of the ruleset ships in this repo at
 `.github/Branch Protection Ruleset - Protect Main.json`. Apply it through the
-GitHub **UI import** — do this only once `build.yml` is on
+GitHub **UI import** — do this only once `build.yml` and
+`devcontainer-build.yml` are on
 `main`, so the required
-`verify`/`security` checks can actually report.
+`verify`/`security`/`devcontainer-verify` checks can actually report.
 Importing first wedges the repository: a required check with no workflow to emit
 it stays pending forever and blocks every pull request.
 

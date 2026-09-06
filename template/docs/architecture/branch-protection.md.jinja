@@ -8,9 +8,9 @@ This document explains the branch protection ruleset applied to `main` and how i
 
 An importable copy of the ruleset ships in this repo at
 `.github/Branch Protection Ruleset - Protect Main.json`. Apply it through the
-GitHub **UI import** — do this only once `build.yml`[% if use_codeql %], `codeql.yml`[% endif %][% if include_terraform %], `terraform.yml`[% endif %] are on
+GitHub **UI import** — do this only once `build.yml`[% if use_codeql %], `codeql.yml`[% endif %][% if include_terraform %], `terraform.yml`[% endif %][% if devcontainer %], `devcontainer-build.yml`[% endif %] are on
 `main`, so the required
-`verify`/`security`[% if use_codeql %]/`codeql-verify`[% endif %][% if include_terraform %]/`terraform-verify`[% endif %] checks can actually report.
+`verify`/`security`[% if use_codeql %]/`codeql-verify`[% endif %][% if include_terraform %]/`terraform-verify`[% endif %][% if devcontainer %]/`devcontainer-verify`[% endif %] checks can actually report.
 Importing first wedges the repository: a required check with no workflow to emit
 it stays pending forever and blocks every pull request.
 

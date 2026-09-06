@@ -34,15 +34,10 @@ head="${2:-HEAD}"
 #   scripts/devcontainer-changed.sh     this file: it decides whether any of
 #                                        the above need to run at all
 #
-# No `-q`: under `set -o pipefail`, a `grep -q` match found before the writer
-# (printf below) finishes can make the writer's own SIGPIPE exit look like
-# the pipeline failed, even though grep matched — pipefail reports the
-# rightmost *non-zero* exit, and grep -q's own early, successful exit does
-# not suppress a SIGPIPE further left. Reading the whole input (redirected to
-# /dev/null instead of printed) avoids that race entirely.
-matches_devcontainer() {
-    grep -E '(^\.devcontainer/|^\.github/workflows/devcontainer-build\.yml$|^scripts/(verify-ci-results|devcontainer-assert|devcontainer-smoke|devcontainer-changed)\.sh$)' >/dev/null
-}
+# A bash regex, not a grep pipeline: matched per-path (see the read loop
+# below) against one string at a time, with no pipe involved at all, so
+# there is no `grep -q`/SIGPIPE/pipefail race to worry about here.
+DEVCONTAINER_PATTERN='^\.devcontainer/|^\.github/workflows/devcontainer-build\.yml$|^scripts/(verify-ci-results|devcontainer-assert|devcontainer-smoke|devcontainer-changed)\.sh$'
 
 emit() {
     echo "$1"
@@ -84,17 +79,33 @@ fi
 # would look like "no devcontainer change" and skip validation. --no-renames
 # reports both sides.
 #
-# -c core.quotePath=false is also load-bearing: git's default C-quotes any
-# path with a non-ASCII byte (".devcontainer/café" becomes the literal
-# 17-character string ".devcontainer/caf\303\251" wrapped in double quotes),
-# which the anchored matcher below would never recognize as living under
-# .devcontainer/ at all.
-if ! changed_files="$(git -c core.quotePath=false diff --name-only --no-renames "$base" "$head" 2>/dev/null)"; then
+# -z is also load-bearing, and stronger than `-c core.quotePath=false`: git's
+# default C-quotes any path with a non-ASCII byte OR a tab/newline/quote/
+# backslash (".devcontainer/café" becomes the literal string
+# ".devcontainer/caf\303\251" wrapped in double quotes; a path containing a
+# real tab is quoted too, and quotePath=false does not stop that one) — the
+# anchored matcher below would never recognize either quoted form as living
+# under .devcontainer/. -z NUL-delimits instead of quoting, so every path
+# comes through byte-for-byte regardless of its contents. Written to a temp
+# file rather than a variable: bash strings cannot hold an embedded NUL, so a
+# NUL-delimited stream must be read as a stream, not captured with $(...).
+tmp_diff="$(mktemp)"
+trap 'rm -f "$tmp_diff"' EXIT
+
+if ! git diff -z --name-only --no-renames "$base" "$head" >"$tmp_diff" 2>/dev/null; then
     echo "devcontainer-changed: could not diff $base..$head — assuming changed" >&2
     emit true
 fi
 
-if printf '%s\n' "$changed_files" | matches_devcontainer; then
+found=false
+while IFS= read -r -d '' path; do
+    if [[ "$path" =~ $DEVCONTAINER_PATTERN ]]; then
+        found=true
+        break
+    fi
+done <"$tmp_diff"
+
+if [ "$found" = true ]; then
     emit true
 fi
 

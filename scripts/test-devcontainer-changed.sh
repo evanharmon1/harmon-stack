@@ -152,6 +152,18 @@ git commit -qm "add a non-ASCII devcontainer path"
 [ "$("$helper" "$prev" HEAD)" = true ] ||
     fail "a non-ASCII devcontainer path was not detected (git core.quotePath)"
 
+# ── a devcontainer path containing a tab is still detected ───────────
+# Regression for the same C-quoting, on a byte core.quotePath=false does NOT
+# stop git from quoting: a literal tab, newline, quote, or backslash in a
+# path is always quoted regardless of that setting. Only -z's NUL-delimited,
+# unquoted output handles this (and the non-ASCII case above) correctly.
+prev="$(git rev-parse HEAD)"
+printf 'tab path content\n' >"$(printf '.devcontainer/a\tb')"
+git add -A
+git commit -qm "add a devcontainer path containing a tab"
+[ "$("$helper" "$prev" HEAD)" = true ] ||
+    fail "a devcontainer path containing a tab was not detected (git quoting)"
+
 # ── fail-safe: unusable input must answer true, never false ─────────
 [ "$("$helper" "" HEAD 2>/dev/null)" = true ] ||
     fail "an empty base must fail safe to changed=true"
