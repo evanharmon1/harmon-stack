@@ -46,16 +46,20 @@ surface.
 
 The shared skills define the stable marker, canonical schema, trusted publisher
 identity, authenticated first-marker bootstrap, compare-before-write protocol,
-per-PR serialization, atomic conditional writes, stale-write behavior, and the
-projection used for readiness fingerprinting. harmon-init consumes that contract
-and tests the workflow boundary; it does not edit managed skill copies. A missing,
-untrusted, or duplicate marker is an explicit failure, except for the
-authenticated first-marker creation transition.
+lookalike handling, monotonic generation and expected-state invariants, per-PR
+serialization, atomic conditional writes, stale-write behavior, and the
+projection used for readiness fingerprinting. The projection normalizes away
+all timestamps for a validated trusted marker. harmon-init consumes that
+contract and tests the workflow boundary; it does not edit managed skill copies.
+A missing or duplicate trusted marker is an explicit failure, except for the
+authenticated first-marker creation transition. Untrusted lookalikes remain
+authoritative content but do not participate in target discovery.
 
 ### Exclude a narrow schema projection from readiness
 
 The fingerprint projection removes only fields declared non-authoritative by the
-marker schema. It continues to hash the PR title/body as authoritative content,
+marker schema and normalizes away all timestamps for a validated trusted marker.
+It continues to hash the PR title/body as authoritative content,
 all reviews and inline comments, all top-level comments other than the
 schema-recognized progress fields, thread resolution, replies, and deferred
 findings. This avoids the unsafe alternative of excluding an entire comment or
@@ -63,9 +67,11 @@ the entire PR body.
 
 ### Test both layers and event shapes
 
-Fixtures model title-only, body-only, combined, opened/synchronized/reopened,
-malformed-marker, and concurrent-update cases. Root/template parity tests compare
-the rendered behavior rather than assuming filename equality for Jinja files.
+Fixtures model title-only, body-only, combined, comment-only,
+opened/synchronized/reopened events at the harmon-init workflow boundary.
+Harmon-devkit owns malformed-marker, lookalike, timestamp, generation, and
+concurrent-update fixtures. Root/template parity tests compare the rendered
+behavior rather than assuming filename equality for Jinja files.
 The historical PR #1070 replay remains a maintainer verification item, not an
 automated claim of live GitHub state.
 
@@ -99,8 +105,9 @@ prerequisites: until they are present, the existing whole-comment readiness
 fingerprint would still invalidate progress updates, so the PR #1070 replay
 cannot pass. During rollout, retain existing PR-body deferred-finding ownership;
 do not migrate or delete existing ledgers as part of this change. Rollback is a
-revert of the workflow/test changes and disabling the marker publisher, leaving
-existing validation authoritative.
+restore of the previous harmon-devkit skills pin followed by its normal sync,
+then a revert of the workflow/test changes and disabling the marker publisher,
+leaving the previous PR-body writer and validation authoritative.
 
 ## Harmon-devkit follow-on
 
@@ -111,8 +118,12 @@ File a separate harmon-devkit issue with this scope:
 > canonical stage, round, current-result, and next-action sections. Authenticate
 > the trusted publisher identity, safely bootstrap exactly one first marker, and
 > implement idempotent compare-before-write updates that preserve human-authored
-> content. Serialize updates per pull request and use atomic conditional writes;
-> reject untrusted or duplicate markers and refuse stale concurrent writes. Export
+> content. Ignore untrusted marker lookalikes for discovery while retaining them
+> as authoritative content. Serialize updates per pull request, carry a
+> monotonic generation and expected prior state, and use atomic conditional
+> writes; reject duplicate trusted markers and refuse stale concurrent writes.
+> Normalize away all timestamps for a validated trusted marker in the readiness
+> projection. Export
 > a readiness-fingerprint projection that excludes only schema-validated,
 > non-authoritative progress fields in that owned comment; keep review findings,
 > replies, deferred findings, and every non-marker comment authoritative. Add

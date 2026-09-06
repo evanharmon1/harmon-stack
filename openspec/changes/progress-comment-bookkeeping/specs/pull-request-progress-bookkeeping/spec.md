@@ -11,7 +11,9 @@ The progress record MUST be one top-level comment containing a stable ownership
 marker and canonical sections for stage, round, current result, and next action.
 The marker MUST be unique to the pull request, and the comment's immutable
 GitHub author/App identity MUST match the configured trusted publisher. Marker
-text and schema validation alone MUST NOT establish ownership.
+text and schema validation alone MUST NOT establish ownership. Lookalike marker
+text from other authors MUST remain ordinary authoritative comment content and
+MUST NOT block discovery of the trusted comment.
 
 #### Scenario: `test_progress_comment_has_canonical_sections`
 - **Given** a pull request passes through two or more workflow stages
@@ -102,12 +104,15 @@ filter MUST distinguish title edits from comment updates, because
 ### Requirement: Readiness authority excludes only validated progress fields
 
 Readiness fingerprinting MUST exclude only the schema-validated,
-non-authoritative progress fields inside the marker-owned comment. Review
-findings, review replies, deferred findings, every non-marker comment, and all
-other pull-request content MUST remain authoritative fingerprint inputs.
+non-authoritative progress fields inside the marker-owned comment. Its
+projection MUST include no comment timestamps, including `updated_at`, for a
+validated trusted marker. Review findings, review replies, deferred findings,
+every non-marker comment (including marker lookalikes), and all other
+pull-request content MUST remain authoritative fingerprint inputs.
 
 #### Scenario: `test_fingerprint_ignores_only_validated_progress_fields`
-- **Given** an owned marker comment changes only schema-valid progress fields
+- **Given** an owned marker comment changes only schema-valid progress fields or
+  its GitHub-maintained timestamps
 - **When** readiness content is fingerprinted
 - **Then** the fingerprint remains unchanged
 
@@ -115,6 +120,13 @@ other pull-request content MUST remain authoritative fingerprint inputs.
 - **Given** the same pull request and head
 - **When** a review finding, reply, deferred finding, non-marker comment, or non-progress marker field changes
 - **Then** the readiness fingerprint changes
+
+#### Scenario: `test_untrusted_marker_lookalike_remains_authoritative`
+- **Given** an untrusted commenter copies the marker into a separate comment
+- **When** the updater discovers the trusted target and readiness content is
+  fingerprinted
+- **Then** the lookalike does not block publishing, and its full content remains
+  an authoritative fingerprint input
 
 ### Requirement: Progress changes do not invalidate current validation
 
@@ -124,6 +136,27 @@ evidence. The aggregate verify job MUST continue to require successful
 closing-keyword validation for every authoritative pull-request edit, including
 body-only edits.
 
+Every progress write MUST carry a monotonic generation and the expected prior
+canonical state. A generation or prior-state mismatch MUST refuse the write,
+even when the physical comment revision is otherwise fresh, so delayed intent
+cannot regress stage or round state.
+
+#### Scenario: `test_progress_update_rejects_stale_semantic_transition`
+- **Given** two serialized updates have the same expected prior state and one
+  commits a newer generation first
+- **When** the delayed update attempts its conditional write
+- **Then** the delayed update refuses and cannot regress the visible stage or round
+
+Rollback MUST restore the previous harmon-devkit skills pin and run its normal
+sync before disabling the marker publisher. The previous PR-body progress writer
+and readiness behavior MUST work unchanged after rollback.
+
+#### Scenario: `test_rollback_restores_previous_progress_writer`
+- **Given** marker-aware skills were rolled out
+- **When** rollback pins and syncs the previous released skills version
+- **Then** the PR-body ledger writer works unchanged and marker publishing is no
+  longer required
+
 #### Scenario: `test_post_validation_progress_update_preserves_readiness`
 - **Given** all required code-head validation is clean and readiness evidence is current
 - **When** only the owned progress fields are updated
@@ -132,8 +165,9 @@ body-only edits.
 ### Requirement: Root and template behavior stay equivalent
 
 The root workflows and their Copier-rendered template twins MUST implement the
-same trigger behavior. Tests MUST cover title-only edits, body-only edits,
-combined edits, synchronized heads, malformed markers, and concurrent comment
+same trigger behavior. Root/template tests MUST cover title-only edits,
+body-only edits, combined edits, comment events, and synchronized heads. The
+harmon-devkit updater tests MUST cover malformed markers and concurrent comment
 updates.
 
 #### Scenario: `test_root_template_progress_workflow_parity`

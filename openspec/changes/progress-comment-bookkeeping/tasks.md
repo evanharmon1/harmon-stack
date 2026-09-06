@@ -14,10 +14,21 @@
 - [ ] 2.1 Add tests proving progress-only updates create no required guard
       check after clean code-head validation.
 - [ ] 2.2 Add tests proving root/template event behavior remains in parity;
-      assign malformed-marker and concurrent-update fixtures to the
-      harmon-devkit updater tests, not this workflow boundary.
+      assign malformed-marker, lookalike, timestamp, generation, and
+      concurrent-update fixtures to the harmon-devkit updater tests, not this
+      workflow boundary.
 - [ ] 2.3 Run the maintainer replay of PR #1070 and record that the visible
       progress correction starts no guard or readiness wait.
+
+- [ ] 2.4 In the harmon-devkit follow-on, test that validated marker timestamp
+      changes do not change readiness fingerprints, while other comment
+      timestamps remain authoritative.
+- [ ] 2.5 In the harmon-devkit follow-on, test that an untrusted marker lookalike
+      cannot block trusted publishing but remains in readiness input.
+- [ ] 2.6 In the harmon-devkit follow-on, test monotonic generation and expected
+      prior-state rejection for delayed concurrent updates.
+- [ ] 2.7 Test rollback by restoring the previous skills pin and sync, then
+      verifying the prior PR-body ledger writer works unchanged.
 
 ## 3. Harmon-devkit follow-on (separate issue; not implemented here)
 
