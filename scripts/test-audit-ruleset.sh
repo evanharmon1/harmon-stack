@@ -1,0 +1,73 @@
+#!/usr/bin/env bash
+# Hermetic tests for audit-ruleset.sh.
+set -euo pipefail
+
+cd "$(dirname "$0")/.."
+audit="$(pwd)/scripts/audit-ruleset.sh"
+tmp_dir="$(mktemp -d -t harmon-init-test-ruleset-XXXXXX)"
+trap 'rm -rf "$tmp_dir"' EXIT
+
+file="$tmp_dir/file.json"
+list="$tmp_dir/list.json"
+live="$tmp_dir/live.json"
+cp ".github/Branch Protection Ruleset - Protect Main.json" "$file"
+printf '[{"id":42,"name":"Protect Main"}]\n' >"$list"
+cp "$file" "$live"
+
+run_audit() {
+    RULESET_AUDIT_FILE="$file" RULESET_AUDIT_LIVE_LIST="$list" \
+        RULESET_AUDIT_LIVE_DETAIL="$live" RULESET_AUDIT_REPO=example/ruleset \
+        "$audit" "$@"
+}
+
+echo "==> identical fixtures"
+run_audit >/dev/null
+
+echo "==> missing required-check context"
+jq '(.rules[] | select(.type == "required_status_checks") | .parameters.required_status_checks) |= map(select(.context != "devcontainer-verify"))' "$file" >"$live.tmp"
+mv "$live.tmp" "$live"
+if run_audit >"$tmp_dir/out"; then
+    echo "FAIL: missing context was reported clean" >&2
+    exit 1
+fi
+grep -q 'RULESET AUDIT DRIFT' "$tmp_dir/out" || {
+    echo "FAIL: drift output missing" >&2
+    exit 1
+}
+cp "$file" "$live"
+
+echo "==> extra live flag"
+jq '(.rules[] | select(.type == "pull_request") | .parameters.extra_fixture_flag) = true' "$live" >"$live.tmp"
+mv "$live.tmp" "$live"
+if run_audit >/dev/null; then
+    echo "FAIL: extra flag was reported clean" >&2
+    exit 1
+fi
+cp "$file" "$live"
+
+echo "==> absent ruleset"
+printf '[]\n' >"$list"
+if run_audit >/dev/null 2>&1; then
+    echo "FAIL: absent ruleset was reported clean" >&2
+    exit 1
+else
+    status=$?
+    [ "$status" -eq 2 ] || {
+        echo "FAIL: absent ruleset exit was $status" >&2
+        exit 1
+    }
+fi
+
+echo "==> permission denied"
+if RULESET_AUDIT_FILE="$file" RULESET_AUDIT_REPO=example/ruleset RULESET_AUDIT_ERROR=permission-denied "$audit" >/dev/null 2>&1; then
+    echo "FAIL: permission denial was reported clean" >&2
+    exit 1
+else
+    status=$?
+    [ "$status" -eq 2 ] || {
+        echo "FAIL: permission exit was $status" >&2
+        exit 1
+    }
+fi
+
+echo "PASS: audit-ruleset fixtures behave"
