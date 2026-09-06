@@ -47,7 +47,12 @@ jobs:
       github.event.pull_request.head.repo.full_name == github.repository
     # Runner switch: CI_RUNS_ON repo/org variable unset -> the rendered
     # default; set it to a JSON runner spec to override without a commit.
-    runs-on: ${{ fromJSON(vars.CI_RUNS_ON || '"ubuntu-latest"') }}
+    # merge_group is pinned to GitHub-hosted regardless: it runs this job's
+    # checkout and scripts/devcontainer-changed.sh from the queued candidate
+    # tree, which can carry fork-authored content, on whatever runner a
+    # repository has configured — including a persistent self-hosted one —
+    # see docs/architecture/ci-cd.md "Security boundaries".
+    runs-on: ${{ github.event_name == 'merge_group' && 'ubuntu-latest' || fromJSON(vars.CI_RUNS_ON || '"ubuntu-latest"') }}
     timeout-minutes: 5
     outputs:
       changed: ${{ steps.detect.outputs.changed }}
@@ -88,14 +93,19 @@ jobs:
     runs-on: ${{ fromJSON(vars.CI_RUNS_ON || '"ubuntu-latest"') }}
     # merge_group is excluded outright, not merely skipped internally: this
     # job's token holds `packages: write` (needed for the push case below),
-    # and a job-level `if:`/`env:` guard lives INSIDE the same file a queued
-    # change can edit — GitHub runs a merge_group event's OWN copy of this
-    # workflow, so a PR that also edits this file could simply delete the
-    # guard and use the write-capable token directly. Excluding the event
-    # from this job entirely moves the boundary to something a same-file
-    # edit cannot reach: which job runs, and that job's OWN, separately
-    # declared (and far more conspicuous to change) permissions block. See
-    # build-merge-group below and docs/architecture/branch-protection.md.
+    # and a job-level `if:`/`env:` guard living INSIDE this same file is not
+    # itself the boundary — GitHub runs a merge_group event's OWN copy of
+    # this workflow, so a PR editing this file controls that guard, this
+    # job's `if:`, and every job's `permissions:` block just as much as its
+    # steps. The actual enforcement is human: `require_code_owner_review`
+    # covers every file here, workflows included, so a PR that touched any
+    # of the above is reviewed before it can reach `main` or a merge queue
+    # at all. Given that review holds, splitting merge_group into its own
+    # `build-merge-group` job (below) with no `packages` permission is
+    # defense in depth: it bounds what an *unreviewed* devcontainer-content
+    # change (one that never touches this file) can do, and it makes any
+    # attempt to widen the split back a more conspicuous, single-purpose
+    # diff for that review to catch. See docs/architecture/branch-protection.md.
     if: >-
       needs.devcontainer-changes.outputs.changed == 'true' &&
       github.event_name != 'merge_group' &&
@@ -186,7 +196,12 @@ jobs:
   # and no login step exists here under any condition.
   build-merge-group:
     needs: [devcontainer-changes]
-    runs-on: ${{ fromJSON(vars.CI_RUNS_ON || '"ubuntu-latest"') }}
+    # Always GitHub-hosted, never CI_RUNS_ON: this job only ever runs for
+    # merge_group, building the candidate tree's own Dockerfile — a
+    # repository-configured persistent self-hosted runner would let that
+    # queued, possibly fork-authored content execute on a machine that
+    # outlives the job. See docs/architecture/ci-cd.md "Security boundaries".
+    runs-on: ubuntu-latest
     if: >-
       needs.devcontainer-changes.outputs.changed == 'true' &&
       github.event_name == 'merge_group'
@@ -316,7 +331,11 @@ jobs:
     # away, which is what lets it be required at all.
     if: always()
     needs: [devcontainer-changes, build, build-merge-group, devcontainer-assert-bot]
-    runs-on: ${{ fromJSON(vars.CI_RUNS_ON || '"ubuntu-latest"') }}
+    # merge_group is pinned to GitHub-hosted regardless: for that event this
+    # job checks out and runs scripts/verify-ci-results.sh from the queued
+    # candidate tree, which can carry fork-authored content — see
+    # docs/architecture/ci-cd.md "Security boundaries".
+    runs-on: ${{ github.event_name == 'merge_group' && 'ubuntu-latest' || fromJSON(vars.CI_RUNS_ON || '"ubuntu-latest"') }}
     env:
       IS_FORK: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository }}
       CHANGED: ${{ needs.devcontainer-changes.outputs.changed }}

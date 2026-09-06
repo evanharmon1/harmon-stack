@@ -75,16 +75,18 @@ candidate tree**, which includes the very changes being evaluated, so a PR
 that also edits this file can simply delete that runtime guard (or add a
 credential-reading step directly) and use the job's token — which still
 carries `packages: write`, declared statically for the push case — without
-ever calling the now-absent login step. `permissions:` is the one thing in
-this file such an edit cannot silently repurpose: GitHub mints the job's
-token from that block before any step, trusted or attacker-added, executes,
-and a diff that widens it back to `packages: write` is exactly the
-conspicuous, reviewable change `require_code_owner_review` exists to catch
-(every file, workflows included, requires this repository's one CODEOWNERS
-reviewer). `build-merge-group` therefore declares only
-`permissions: {contents: read}` — no `packages` key at all, hence no scope
-to authenticate with regardless of what its steps try — and carries no
-`docker/login-action` step under any condition, not merely a skipped one.
+ever calling the now-absent login step. A PR editing this file controls
+`permissions:` just as much as any step, so that block is not itself an
+edit-proof boundary either — the actual enforcement is human:
+`require_code_owner_review` covers every file here, workflows included, so
+a diff widening `build-merge-group`'s block back to `packages: write` (or
+adding another job that declares it) is reviewed before it can reach `main`
+or a merge queue at all. Given that review holds, `build-merge-group`
+declaring only `permissions: {contents: read}` — no `packages` key, hence
+no scope to authenticate with — and carrying no `docker/login-action` step
+under any condition is defense in depth: it bounds what an *unreviewed*
+devcontainer-content change can do, and makes an attempt to widen it back a
+conspicuous, single-purpose diff for that review to catch.
 `build` keeps `packages: write` for the push case it still needs, and now
 excludes `merge_group` outright via its own `if:`, mirroring how
 `devcontainer-assert-bot` already excludes it.
@@ -138,7 +140,9 @@ did or did not run.
   the "credential-free" property depended entirely on a same-file runtime
   guard a queued, workflow-file-editing PR can simply not include in its own
   submitted copy. Superseded by the `build-merge-group` split above, which
-  moves the boundary to a place a same-file edit cannot reach.
+  moves the real enforcement to code-owner review of a conspicuous,
+  single-purpose diff, and uses `permissions:` as defense in depth given
+  that review holds — not as a boundary a same-file edit cannot reach.
 - *Make `devcontainer-assert-bot` credential-free on `merge_group` by
   passing an empty `cacheFrom` via an `--override-config` or a generated
   devcontainer.json variant.* Rejected as unnecessary complexity for a path
@@ -146,6 +150,20 @@ did or did not run.
   runbook) — standing the job down for the one event where its provenance
   can't be verified is simpler and does not risk depending on
   registry-auth-failure behavior this design has not verified empirically.
+
+**`devcontainer-changes`, `build-merge-group`, and `devcontainer-verify`
+pin `runs-on: ubuntu-latest` for `merge_group`, ignoring `CI_RUNS_ON`.**
+Confirmed missing in challenge round 4: these are exactly the jobs that
+run on `merge_group` and check out or execute content from the queued
+candidate tree, which can carry fork-authored changes GitHub does not
+distinguish on that event. `docs/architecture/ci-cd.md`'s "Security
+boundaries" section already states the policy — "Keep untrusted-
+contribution workflows on GitHub-hosted runners" — for exactly this
+reason; a repository that has pointed `CI_RUNS_ON` at a persistent
+self-hosted runner must not have that runner's filesystem, credentials, or
+prior jobs' leftovers exposed to a queued fork-authored build. `build` and
+`devcontainer-assert-bot` both already exclude `merge_group` outright, so
+neither needs the same pin.
 
 ## Risks / Trade-offs
 

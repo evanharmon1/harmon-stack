@@ -364,6 +364,14 @@ can condition per job, so rather than risk a partial credential-free path,
 that job stands down entirely and `devcontainer-verify` treats the skip as
 the expected, passing outcome.
 
+Every job that runs on `merge_group` (`devcontainer-changes`,
+`build-merge-group`, `devcontainer-verify`) is also pinned to
+`runs-on: ubuntu-latest`, ignoring the `CI_RUNS_ON` variable entirely — see
+[ci-cd.md](ci-cd.md)'s "Security boundaries". A repository that has pointed
+`CI_RUNS_ON` at a persistent self-hosted runner must never have that
+runner's filesystem, credentials, or a prior job's leftovers exposed to a
+queued, possibly fork-authored devcontainer build.
+
 ## What the AI Agent Can and Cannot Do
 
 | Operation                               | Allowed? | Enforced by                                     |

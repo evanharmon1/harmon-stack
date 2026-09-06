@@ -75,11 +75,13 @@ plus an aggregate **`verify`** job; branch protection requires `verify` +
   passes `devcontainer-verify` vacuously (every repository-controlled job is
   skipped at the fork trust boundary). `merge_group` builds run in a
   dedicated `build-merge-group` job whose own `permissions:` grant no
-  `packages` scope at all — a real boundary a same-file edit cannot
-  repurpose, unlike a runtime skip inside `build` — and
-  `devcontainer-assert-bot` stands down entirely there instead, because its
-  registry cache cannot go credential-free per event — see
-  [branch-protection.md](branch-protection.md) for the fork-PR trusted-rerun
+  `packages` scope at all, bounding what unreviewed devcontainer content
+  can do (the actual enforcement is `require_code_owner_review`, which
+  covers this workflow file too — see branch-protection.md), and jobs that
+  run on `merge_group` are pinned to a GitHub-hosted runner regardless of
+  `CI_RUNS_ON`. `devcontainer-assert-bot` stands down entirely there
+  instead, because its registry cache cannot go credential-free per event —
+  see [branch-protection.md](branch-protection.md) for the fork-PR trusted-rerun
   runbook and the merge_group carve-out.
 [% endif %]
 [% if claim_release_available %]

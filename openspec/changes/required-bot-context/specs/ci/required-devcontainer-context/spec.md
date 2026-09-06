@@ -139,3 +139,20 @@ broader scopes, including `packages`, than this workflow intends).
   `permissions:` (a workflow-level default, since neither job declares its
   own), not by whatever this repository's ambient default token permission
   happens to be set to
+
+### Requirement: Merge-group jobs never inherit the self-hosted selector
+Every job that runs on a `merge_group` event SHALL execute on a
+GitHub-hosted runner, regardless of the `CI_RUNS_ON` repository or
+organization variable a consumer may have pointed at a persistent
+self-hosted machine. A `merge_group` run can carry fork-authored content
+that the workflow cannot distinguish from same-repository content on that
+event, and a persistent runner exposes its filesystem, credentials, and
+prior jobs' leftovers to whatever code executes on it — a risk a
+GitHub-hosted, disposable runner does not carry.
+
+#### Scenario: merge_group jobs never inherit the self-hosted selector
+- **WHEN** `devcontainer-changes`, `build-merge-group`, or
+  `devcontainer-verify` runs for a `merge_group` event, in a repository
+  that has set `CI_RUNS_ON` to a self-hosted runner label
+- **THEN** that job still runs on a GitHub-hosted runner (`ubuntu-latest`),
+  never on the configured self-hosted one
