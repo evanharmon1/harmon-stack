@@ -96,10 +96,10 @@ this comment. -->
       required status check. Do not re-import the JSON solely for this change:
       GitHub creates a duplicate ruleset rather than updating the live one.
 - [ ] **[human-only] Enable unattributed-changes approval in the live branch
-      ruleset** — after a `copier update` adds this parameter, edit the existing
-      main-branch ruleset in Settings → Rules → Rulesets and enable the matching
-      additional-approval setting. Do not re-import the JSON: GitHub creates a
-      duplicate ruleset rather than updating the live one.
+      ruleset** — when the checked-in ruleset gains this setting, edit the
+      existing main-branch ruleset in Settings → Rules → Rulesets and enable the
+      matching additional-approval setting. Do not re-import the JSON: GitHub
+      creates a duplicate ruleset rather than updating the live one.
 
 - [ ] **Install and activate Renovate** — install the
       [Renovate app](https://github.com/apps/renovate) for **Only select
