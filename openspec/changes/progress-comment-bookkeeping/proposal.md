@@ -16,9 +16,10 @@ progress surface whose updates are distinguishable from authoritative PR edits.
 - Specify that the progress updater is idempotent and compare-before-write,
   preserves human-authored content, rejects missing or duplicate markers, and
   handles concurrent updates safely.
-- Narrow the release-content and closing-keyword workflow triggers to opened,
-  synchronized, reopened, and title-edited pull requests; body-only edits do
-  not start those guard jobs, while title-only edits still do.
+- Keep release-content and closing-keyword validation authoritative for opened,
+  synchronized, reopened, title-edited, and body-edited pull requests; move
+  marker bookkeeping to the comment event surface so progress-only edits do not
+  enqueue those guard jobs.
 - Add root/template workflow parity tests for title-only, body-only, combined,
   synchronized, malformed-marker, and concurrent-update fixtures.
 - Define readiness fingerprinting so only schema-validated, non-authoritative

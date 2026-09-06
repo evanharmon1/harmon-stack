@@ -92,11 +92,15 @@ assuming a rerun can reinterpret a body-only event as a title edit.
 
 ## Migration Plan
 
-Implement the workflow trigger and test changes in harmon-init, then land the
-harmon-devkit follow-on that provides the marker/updater and fingerprint
-projection. During rollout, retain existing PR-body deferred-finding ownership;
+Land and release the harmon-devkit marker/updater and fingerprint projection,
+sync that released version into the consuming skills, and only then accept the
+harmon-init workflow/test changes. The release and vendored sync are rollout
+prerequisites: until they are present, the existing whole-comment readiness
+fingerprint would still invalidate progress updates, so the PR #1070 replay
+cannot pass. During rollout, retain existing PR-body deferred-finding ownership;
 do not migrate or delete existing ledgers as part of this change. Rollback is a
-revert of the workflow trigger predicates, leaving the shared marker inert.
+revert of the workflow/test changes and disabling the marker publisher, leaving
+existing validation authoritative.
 
 ## Harmon-devkit follow-on
 

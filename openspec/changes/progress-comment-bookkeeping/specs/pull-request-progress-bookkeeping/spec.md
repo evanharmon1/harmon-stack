@@ -20,6 +20,13 @@ text and schema validation alone MUST NOT establish ownership.
 
 ### Requirement: Safe idempotent progress updates
 
+For initialization, the authenticated trusted publisher MUST use a distinct
+create operation when the pull request has zero markers: it may create exactly
+one marker after rechecking for a competing marker, and a concurrent marker
+causes the operation to fail closed. If a marker exists but is untrusted, or if
+more than one marker exists, every update operation MUST fail closed; it MUST
+not treat an untrusted marker as an initialization target.
+
 The updater MUST compare the canonical rendered content before writing, MUST
 leave unchanged content untouched, MUST preserve content outside the owned
 sections, and MUST refuse to proceed when the ownership marker is missing or
@@ -37,13 +44,14 @@ precondition.
 - **Then** it performs no write and leaves the human-authored content intact
 
 #### Scenario: `test_progress_update_bootstraps_one_authenticated_marker`
-- **Given** an authenticated trusted publisher finds no ownership marker
-- **When** it initializes progress and a competing marker does not appear
+- **Given** an authenticated trusted publisher invokes the distinct
+  initialization operation and finds zero markers
+- **When** it rechecks and no competing marker appears
 - **Then** it creates exactly one marker-owned comment and subsequent updates target it
 
 #### Scenario: `test_progress_update_rejects_untrusted_or_duplicate_markers`
 - **Given** a pull request has a marker authored by an untrusted identity, or
-  has zero or more than one trusted ownership marker
+  has more than one trusted ownership marker
 - **When** the updater searches for its target comment
 - **Then** it fails closed without modifying any existing comment or creating a
   second marker
