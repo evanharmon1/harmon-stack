@@ -339,16 +339,22 @@ itself, so a runtime `if:` guard inside `devcontainer-build.yml` is not a
 credential boundary: a pull request that also edits this file could simply
 not include that guard in its own submitted copy.
 
-The boundary that holds regardless is `permissions:`, which GitHub resolves
-into the job's token before any step — trusted or attacker-added — runs.
-`build-merge-group` is a dedicated job for this one event, declaring only
-`permissions: {contents: read}` — no `packages` scope at all, not merely an
-unused one — with no `docker/login-action` step under any condition. Even a
-maliciously-edited copy of this job cannot authenticate to the registry,
-because the token it is issued has no scope to do so. Widening that block
-back to `packages: write` is exactly the conspicuous, reviewable diff
-`require_code_owner_review` exists to catch (this repository's CODEOWNERS
-covers every file, workflows included). `build-merge-group` still runs and
+`permissions:` is not immutable either — a PR that edits this file could
+widen `build-merge-group`'s block back to `packages: write`, or add an
+entirely new job that declares it, the same way it could edit anything else
+here. What actually stops that is `require_code_owner_review`: this
+repository's CODEOWNERS covers every file, workflows included, so widening
+a permissions block is a conspicuous, reviewable line in the diff a human
+must approve before the change can reach `main` or a merge queue at all —
+the same review that already has to catch a credential-exfiltration step
+added directly to any other job in this file. What the narrow, dedicated
+`permissions: {contents: read}` block buys, given that review holds, is
+that no _step_ `build-merge-group` runs — trusted or attacker-added,
+without also touching `permissions:` itself — can authenticate to the
+registry, because the token GitHub issues for that job (resolved from this
+block before any step executes) has no `packages` scope to do so, and no
+`docker/login-action` step exists here under any condition to notice its
+absence. `build-merge-group` still runs and
 must still succeed — it validates that the devcontainer image builds — but
 `devcontainer-verify` does not expect `devcontainer-assert-bot` to run on
 `merge_group` at all: its registry cache is a static field in

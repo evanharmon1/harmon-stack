@@ -116,6 +116,42 @@ git commit -qm "delete"
 [ "$("$helper" "$prev" HEAD)" = true ] ||
     fail "deleting a devcontainer file was not detected"
 
+# ── a match early in a large diff is still detected ──────────────────
+# Regression for a `grep -q` pipeline under `set -o pipefail`: grep -q can
+# exit successfully as soon as it finds a match, before printf finishes
+# writing the rest of a large changed-file list; printf's own SIGPIPE from
+# that early exit then made pipefail report the whole pipeline as failed,
+# masking a real match. `.devcontainer/Dockerfile` sorts first here, well
+# ahead of enough trailing filenames to make that race matter.
+prev="$(git rev-parse HEAD)"
+printf 'FROM scratch\n# touched\n' >.devcontainer/Dockerfile
+mkdir -p unrelated
+i=0
+while [ "$i" -lt 5000 ]; do
+    printf 'noise %s\n' "$i" >"unrelated/file-${i}.txt"
+    i=$((i + 1))
+done
+git add -A
+git commit -qm "devcontainer change followed by a large unrelated tail"
+[ "$("$helper" "$prev" HEAD)" = true ] ||
+    fail "a devcontainer change early in a large diff was not detected (grep -q/pipefail race)"
+rm -rf unrelated
+git add -A
+git commit -qm "remove unrelated noise files"
+
+# ── a non-ASCII devcontainer path is still detected ───────────────────
+# Regression for git's default core.quotePath=true, which C-quotes any path
+# containing a non-ASCII byte (".devcontainer/café" becomes the literal
+# string ".devcontainer/caf\303\251" wrapped in double quotes) — the anchored
+# matcher would never recognize that quoted form as living under
+# .devcontainer/ at all.
+prev="$(git rev-parse HEAD)"
+printf 'unicode path content\n' >".devcontainer/café.txt"
+git add -A
+git commit -qm "add a non-ASCII devcontainer path"
+[ "$("$helper" "$prev" HEAD)" = true ] ||
+    fail "a non-ASCII devcontainer path was not detected (git core.quotePath)"
+
 # ── fail-safe: unusable input must answer true, never false ─────────
 [ "$("$helper" "" HEAD 2>/dev/null)" = true ] ||
     fail "an empty base must fail safe to changed=true"

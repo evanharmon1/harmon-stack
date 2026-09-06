@@ -428,16 +428,22 @@ instead.
 
 On a `merge_group` event, `devcontainer-verify` still requires
 `build-merge-group` to succeed — it validates that the devcontainer image
-builds. That job is dedicated to this one event and declares only
-`permissions: {contents: read}` — no `packages` scope at all, not merely an
-unused one, and no `docker/login-action` step under any condition. GitHub
-resolves a job's token from its own `permissions:` block before any step
-runs, so even a maliciously-edited copy of this job cannot authenticate to
-the registry: a runtime guard living in the same file a queued change can
-edit would not have been a real credential boundary, since `merge_group`
+builds. A runtime guard living in the same file a queued change can edit
+would not have been a real credential boundary here, since `merge_group`
 runs the workflow definition from the queued candidate tree itself, and
 GitHub does not expose that pull request's fork-vs-same-repo origin on
-`merge_group` the way it does on `pull_request`. The credentialed
+`merge_group` the way it does on `pull_request`. `permissions:` is not
+immutable either — a PR could widen it back to `packages: write` the same
+way it could edit anything else in this file. What actually stops that is
+`require_code_owner_review` (this repository's CODEOWNERS covers every
+file, workflows included), so widening a permissions block is a
+conspicuous, reviewable line a human must approve first. What the narrow,
+dedicated `permissions: {contents: read}` block on `build-merge-group`
+buys, given that review holds, is that no _step_ it runs — trusted or
+attacker-added, without also touching `permissions:` itself — can
+authenticate to the registry: GitHub resolves that job's token from this
+block before any step executes, and no `docker/login-action` step exists
+here under any condition to notice its absence. The credentialed
 `devcontainer-assert-bot` job (it starts a real container and needs a
 registry login for its cache, which is a static field in
 `.devcontainer/devcontainer.json` this workflow cannot condition per job)

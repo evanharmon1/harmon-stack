@@ -33,8 +33,15 @@ head="${2:-HEAD}"
 #                                        assertion above
 #   scripts/devcontainer-changed.sh     this file: it decides whether any of
 #                                        the above need to run at all
+#
+# No `-q`: under `set -o pipefail`, a `grep -q` match found before the writer
+# (printf below) finishes can make the writer's own SIGPIPE exit look like
+# the pipeline failed, even though grep matched — pipefail reports the
+# rightmost *non-zero* exit, and grep -q's own early, successful exit does
+# not suppress a SIGPIPE further left. Reading the whole input (redirected to
+# /dev/null instead of printed) avoids that race entirely.
 matches_devcontainer() {
-    grep -qE '(^\.devcontainer/|^\.github/workflows/devcontainer-build\.yml$|^scripts/(verify-ci-results|devcontainer-assert|devcontainer-smoke|devcontainer-changed)\.sh$)'
+    grep -E '(^\.devcontainer/|^\.github/workflows/devcontainer-build\.yml$|^scripts/(verify-ci-results|devcontainer-assert|devcontainer-smoke|devcontainer-changed)\.sh$)' >/dev/null
 }
 
 emit() {
@@ -76,7 +83,13 @@ fi
 # destination path, so deleting the devcontainer definition by moving it out
 # would look like "no devcontainer change" and skip validation. --no-renames
 # reports both sides.
-if ! changed_files="$(git diff --name-only --no-renames "$base" "$head" 2>/dev/null)"; then
+#
+# -c core.quotePath=false is also load-bearing: git's default C-quotes any
+# path with a non-ASCII byte (".devcontainer/café" becomes the literal
+# 17-character string ".devcontainer/caf\303\251" wrapped in double quotes),
+# which the anchored matcher below would never recognize as living under
+# .devcontainer/ at all.
+if ! changed_files="$(git -c core.quotePath=false diff --name-only --no-renames "$base" "$head" 2>/dev/null)"; then
     echo "devcontainer-changed: could not diff $base..$head — assuming changed" >&2
     emit true
 fi
