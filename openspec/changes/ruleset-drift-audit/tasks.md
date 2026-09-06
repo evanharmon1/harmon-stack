@@ -16,5 +16,5 @@
 ## 4. Integrated verification
 
 - [x] 4.1 Wire the unit test into the repository test tier and verify the standalone and task-based test targets pass.
-- [ ] 4.2 Run `openspec validate --all`, `task spec:validate`, `task check`, `task verify`, and `task security`; verify all required gates are green.
-- [ ] 4.3 Run `task audit:ruleset` once against the live repository and record its readable result for the draft PR report.
+- [x] 4.2 Run `openspec validate --all`, `task spec:validate`, `task check`, `task verify`, and `task security`; verify all required gates are green.
+- [x] 4.3 Run `task audit:ruleset` once against the live repository and record its readable result for the draft PR report.
