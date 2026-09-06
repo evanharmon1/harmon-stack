@@ -145,8 +145,9 @@ on a fresh volume so `agy` resolves straight to the system binary; if
 something already occupies `agy` at that exact point instead, it is left
 exactly as found unless it would break a later replacement — a dangling
 symlink (its target already gone) or a symlink to an existing directory
-(which a later `mv -f`/`ln -sfn` cannot cleanly replace) — either of
-which this installer removes instead, in both profiles. Either way, the
+(which the bot's later wrapper install — an unguarded `mv -f` — cannot
+cleanly replace, landing inside the directory instead) — either of which
+this installer removes instead, in both profiles. Either way, the
 bot's `apply` still installs its flag-injecting wrapper
 over whatever this installer
 leaves. It is gated on the rendered

@@ -5,10 +5,16 @@ On its **system-binary-sufficient early return** — the pinned system
 binary is present on `PATH` and no executable local `agy-real` copy
 exists (`[ -x "$real_bin" ]` false) — `ensure-antigravity-cli.sh` SHALL
 guarantee exactly this about `~/.local/bin/agy`, in either profile: it is
-never a dangling symlink (a symlink whose target does not exist) and
-never a symlink to an existing directory — the two shapes a later
-replacement (`install_wrapper`'s `mv -f`, or a later `ln -sfn`) cannot
-perform cleanly. This closes the gap issue `#1171` tracked as launcher
+never a dangling symlink (a symlink whose target does not exist) —
+already a broken launcher regardless of what replaces it later — and
+never a symlink to an existing directory, the one shape
+`bot-autonomy/antigravity.sh`'s `install_wrapper` cannot perform cleanly:
+its unguarded `mv -f "$tmp" "$link_bin"` lands *inside* an existing
+directory target instead of replacing the link. A *later* `ln -sfn` is
+unaffected by that same shape — its `-n` flag treats the link name as a
+plain file rather than following it as a directory, so it replaces a
+symlink-to-directory cleanly; this concern is specific to `mv -f`. This
+closes the gap issue `#1171` tracked as launcher
 state "(d) unreconciled": that state was *any* pre-existing value this
 branch left untouched, without regard for whether it broke a later
 replacement; no state that broad is defined for this branch any longer.
@@ -71,10 +77,12 @@ or reconciles the pinned binary at `agy-real` and (re)points a plain
 early return (the pinned system binary is present on `PATH` and no
 executable local `agy-real` copy exists, `[ -x "$real_bin" ]` false),
 installs nothing itself and instead reconciles whatever already occupies
-`agy`: absence stays absence (state c); a dangling symlink or a symlink
-to an existing directory — the two shapes a later `mv -f`
-(`bot-autonomy/antigravity.sh`'s `install_wrapper`) or a later `ln -sfn`
-cannot safely replace — is removed, reaching state (c); any other
+`agy`: absence stays absence (state c); a dangling symlink (already a
+broken launcher on its own) or a symlink to an existing directory (the
+one shape `bot-autonomy/antigravity.sh`'s `install_wrapper`'s unguarded
+`mv -f` cannot safely replace, landing inside it instead of replacing the
+link — a later `ln -sfn` is unaffected) is removed, reaching state (c);
+any other
 pre-existing value (a regular file, a valid wrapper, or a symlink to an
 existing file) is left exactly as found, since this branch has nothing of
 its own to replace it with and removing a still-valid wrapper before its
@@ -324,14 +332,18 @@ this capability's existence rather than by a separate runtime check.
   `~/.local/bin/agy`. `ensure-antigravity-cli.sh`'s own reconciliation on
   its system-binary-sufficient early return (see the requirement above)
   removes a dangling symlink or a symlink to an existing directory there
-  too, so — barring the narrow, tamper-only non-executable-target residue
-  the requirement above names — only its plain `agy → agy-real` symlink
+  too, so no unreconciled dangling or unreplaceable leftover can persist
+  in the dev profile the way it could before issue `#1171`'s fix. That
+  reconciliation is exactly that narrow, though: a regular file
+  (including a wrapper a prior run already installed, or any other file
+  found there) or a symlink to an existing file — executable or not — is
+  preserved exactly as found, same as the requirement above describes.
+  The dev profile therefore reaches its plain `agy → agy-real` symlink
   (state b, when `HARMON_BOT_AUTONOMY_ANTIGRAVITY` reads `enabled` and a
   local copy is needed) or absence (state c, when disabled, or when
-  enabled and the on-`PATH` system binary already satisfies the pin) is
-  reached in the dev profile, and no unreconciled dangling or
-  unreplaceable leftover can persist there the way it could before issue
-  `#1171`'s fix
+  enabled and the on-`PATH` system binary already satisfies the pin) only
+  when nothing else already occupied `agy`; otherwise it retains whatever
+  else was already there instead
 
 #### Scenario: dev profile policies remain prompt-enabled or balanced
 - **WHEN** a dev profile container is created or rebuilt
