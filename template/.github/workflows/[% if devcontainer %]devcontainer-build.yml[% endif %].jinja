@@ -172,16 +172,18 @@ jobs:
           docker image prune --force
 
   # Handles ONLY merge_group. A separate job, not a same-repo/merge_group
-  # branch inside `build` above, on purpose: `permissions:` is the one thing
-  # in this file a same-file edit cannot quietly repurpose at runtime — the
-  # token GitHub issues for this job is minted from this block BEFORE any
-  # step (trusted or attacker-added) runs, and a diff that widens it back to
-  # `packages: write` is exactly the conspicuous, reviewable change
+  # branch inside `build` above, on purpose: a runtime `if:` guard inside a
+  # shared job is not a credential boundary here — the queued candidate tree
+  # controls this workflow's definition on merge_group, so it could simply
+  # omit that guard. `permissions:` is resolved into the job's token BEFORE
+  # any step runs, so the actual boundary is human, not this file: widening
+  # this block back to `packages: write` (or adding another job that
+  # declares it) is exactly the conspicuous, reviewable change
   # `require_code_owner_review` exists to catch (see docs/architecture/
-  # branch-protection.md). No login step exists here at all — not merely a
-  # skipped one — and no packages permission is declared, so even a
-  # maliciously-edited copy of this job cannot authenticate to the registry
-  # regardless of what its own steps try to do.
+  # branch-protection.md). Given that review holds, no *step* this job runs
+  # — trusted or attacker-added, without also touching `permissions:` itself
+  # — can authenticate to the registry: no packages permission is declared,
+  # and no login step exists here under any condition.
   build-merge-group:
     needs: [devcontainer-changes]
     runs-on: ${{ fromJSON(vars.CI_RUNS_ON || '[[ ci_runs_on_default ]]') }}
