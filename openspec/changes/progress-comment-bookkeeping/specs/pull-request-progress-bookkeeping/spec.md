@@ -15,16 +15,24 @@ text and schema validation alone MUST NOT establish ownership. Lookalike marker
 text from other authors MUST remain ordinary authoritative comment content and
 MUST NOT block discovery of the trusted comment.
 
-The rendered marker text MUST be inert: activation phrases such as `@codex
-review`, `@claude ...`, and any other `@`-mention MUST be escaped or rendered as
-non-activating structured text. This protects the Codex trigger contract and
-the `.github/workflows/claude-review.yml` workflow, which starts on created
-issue comments containing activation phrases.
+The renderer MUST NOT emit any activation substring in marker text. Next-action
+values MUST be stored structurally and rendered as neutral prose such as
+"request the Codex review" or "request the Claude review"; the rendered body
+MUST contain neither `@codex review` nor `@claude` nor any other `@`-mention.
+This protects the Codex trigger contract and the
+`.github/workflows/claude-review.yml` workflow, which starts on created issue
+comments containing activation phrases.
 
 #### Scenario: `test_progress_comment_has_canonical_sections`
 - **Given** a pull request passes through two or more workflow stages
 - **When** progress is published
 - **Then** exactly one marker-owned top-level comment contains the stable marker and all four canonical sections
+
+#### Scenario: `test_progress_comment_denies_activation_substrings`
+- **Given** a next-action value requests a Codex or Claude review
+- **When** the marker body is rendered
+- **Then** the body contains neither `@codex review` nor `@claude` nor any
+  other `@`-mention, and no review request or workflow run is triggered
 
 ### Requirement: Safe idempotent progress updates
 
@@ -48,9 +56,12 @@ precondition.
 
 Every conditional transition MUST carry the expected head SHA and re-read the
 pull-request head immediately before writing; a head mismatch MUST refuse the
-transition without publishing progress. Every marker discovery MUST paginate
-the issue-comments endpoint completely before deciding that zero, one, or many
-markers exist.
+transition without publishing progress. After a conditional write, the updater
+MUST re-read the pull-request head again. If it advanced after the pre-write
+check, the updater MUST immediately overwrite the marker to a stale,
+re-evaluate state, and MUST NOT publish the earlier-head result as current on
+the newer head. Every marker discovery MUST paginate the issue-comments
+endpoint completely before deciding that zero, one, or many markers exist.
 
 #### Scenario: `test_progress_update_is_compare_before_write_and_preserves_humans`
 - **Given** an owned comment contains human-authored content and the requested canonical progress is unchanged
@@ -80,6 +91,14 @@ markers exist.
 - **Given** a conditional progress transition has read an expected head SHA
 - **When** the pull-request head advances before the write
 - **Then** the transition refuses and publishes no marker update
+
+#### Scenario: `test_progress_update_marks_post_write_head_race_stale`
+- **Given** a conditional progress write passes its pre-write head check
+- **When** the pull-request head advances between the post-check read and the
+  write
+- **Then** the updater immediately overwrites the marker with a stale,
+  re-evaluate state and never leaves the earlier-head result published as
+  current
 
 #### Scenario: `test_marker_discovery_paginates_before_initialization`
 - **Given** the existing marker is returned on a later issue-comments page

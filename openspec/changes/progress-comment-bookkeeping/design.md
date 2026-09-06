@@ -7,9 +7,10 @@ reviews, top-level comments, inline comments, and review-thread resolution, so
 the new authority boundary must be narrow. The vendored `shepherd`, `gauntlet`,
 and `track-work` copies are managed by harmon-devkit and are not editable here.
 
-Marker rendering is data-only: activation phrases such as `@codex review`,
-`@claude ...`, and all other mentions are escaped or represented as structured
-non-activating text. This is required by the Codex trigger contract and
+Marker rendering is data-only: the renderer emits no activation substring.
+Next-action values are stored structurally and rendered as neutral prose, and
+the output is deny-listed against `@codex review`, `@claude`, and every other
+`@`-mention. This is required by the Codex trigger contract and
 `.github/workflows/claude-review.yml`, whose created-issue-comment trigger
 matches activation phrases.
 
@@ -53,8 +54,9 @@ surface.
 The shared skills define the stable marker, canonical schema, trusted publisher
 identity, authenticated first-marker bootstrap, compare-before-write protocol,
 lookalike handling, monotonic generation and expected-state invariants, per-PR
-serialization, atomic conditional writes, stale-write behavior, and the
-projection used for readiness fingerprinting. The projection normalizes away
+serialization, atomic conditional writes, stale-write behavior, post-write
+head checks, stale re-evaluation recovery, and the projection used for
+readiness fingerprinting. The projection normalizes away
 all timestamps for a validated trusted marker. harmon-init consumes that
 contract and tests the workflow boundary; it does not edit managed skill copies.
 A missing or duplicate trusted marker is an explicit failure, except for the
@@ -115,7 +117,10 @@ and only then accept the
 harmon-init workflow/test changes. The release and vendored sync are rollout
 prerequisites: until they are present, the existing whole-comment readiness
 fingerprint would still invalidate progress updates, so the PR #1070 replay
-cannot pass. During rollout, retain existing PR-body deferred-finding ownership;
+cannot pass. Profiles with `use_foreman=true` are excluded from this capability
+by default: they may opt in only after a compatible Foreman release ships its
+own marker/readiness tests and the pinned `ponderousdev/foreman` version is
+bumped. During rollout, retain existing PR-body deferred-finding ownership;
 do not migrate or delete existing ledgers as part of this change. Rollback is a
 restore of the previous harmon-devkit skills pin followed by its normal sync,
 then a revert of the workflow/test changes and disabling the marker publisher,
@@ -134,6 +139,10 @@ File a separate harmon-devkit issue with this scope:
 > as authoritative content. Serialize updates per pull request, carry a
 > monotonic generation and expected prior state, and use atomic conditional
 > writes; reject duplicate trusted markers and refuse stale concurrent writes.
+> Re-read the pull-request head after each conditional write and immediately
+> overwrite the marker with a stale, re-evaluate state if the head advanced
+> during the write window. Render next-action values as neutral prose with no
+> activation substring or `@`-mention, and test that deny-list.
 > Normalize away all timestamps for a validated trusted marker in the readiness
 > projection. Export
 > a readiness-fingerprint projection that excludes only schema-validated,
@@ -145,10 +154,15 @@ File a separate harmon-devkit issue with this scope:
 > `shepherd`, and test that fallback against marker progress and authoritative
 > comment changes. Do not move deferred-finding ownership.
 
+Until a compatible pinned `ponderousdev/foreman` release provides and passes
+its own marker/readiness tests, explicitly exclude Foreman-managed PRs from the
+capability. The harmon-init workflow change MUST NOT assume a harmon-devkit
+sync can update the pinned `ponderousdev/foreman` binary.
+
 ## Open Questions
 
-The two round-4 P1s are intentionally carried as maintainer-owned design
-questions rather than resolved here:
+These unresolved questions remain intentionally maintainer-owned design
+questions rather than being resolved here:
 
 - **Q1. Untrusted lookalike markers:** reconcile the fail-closed update rule with
   non-blocking discovery and decide how an updater behaves when a lookalike

@@ -34,6 +34,9 @@ progress surface whose updates are distinguishable from authoritative PR edits.
 - Require the harmon-devkit release and vendored fingerprint projection before
   accepting the harmon-init workflow change; existing workflow behavior is a
   regression assertion, not a no-op rewrite prescription.
+- Exclude Foreman-managed PRs from the v1 capability until a compatible pinned
+  Foreman release provides its own marker/readiness tests; a harmon-devkit sync
+  cannot update the pinned `ponderousdev/foreman` binary.
 
 The marker format, updater, and readiness-fingerprint implementation belong to
 the vendored shared skills in harmon-devkit and are deliberately not edited in
@@ -49,6 +52,8 @@ repositories have a testable handoff.
 - Editing the vendored `shepherd`, `gauntlet`, or `track-work` skills here.
 - Implementing the harmon-devkit updater or fingerprinting mechanism in
   harmon-init.
+- Enabling the capability for Foreman-managed PRs before a compatible Foreman
+  release and pin bump exist.
 
 ## Capabilities
 
@@ -75,16 +80,18 @@ upstream work is harmon-devkit issue #461 (latest-run-per-check, in progress)
 and issue #490 (`gh run rerun` replays the stored payload); those constraints inform the
 event and run-correlation design but are not implemented by this proposal.
 
-Marker rendering must be inert with respect to `@codex review`, `@claude ...`,
-and other mentions, because the Codex trigger contract and
-`.github/workflows/claude-review.yml` respond to activation phrases in created
-issue comments. The follow-on also requires head-SHA conditional transitions
-and fully paginated marker discovery.
+Marker rendering must emit no activation substring at all: next-action values
+are structural data rendered as neutral prose, with a deny-list covering
+`@codex review`, `@claude`, and every `@`-mention. This is required because the
+Codex trigger contract and `.github/workflows/claude-review.yml` respond to
+activation phrases in created issue comments. The follow-on also requires
+head-SHA conditional transitions, post-write stale re-evaluation, and fully
+paginated marker discovery.
 
 ## Open design questions
 
-These questions carry the two round-4 P1s for maintainer review; they are not
-resolved by this proposal and must be settled before implementation:
+These questions remain maintainer-owned design questions; they are not resolved
+by this proposal and must be settled before implementation:
 
 - **Q1. Untrusted lookalike markers.** Reconcile the fail-closed update rule in
   the specification (approximately lines 28–30) with the non-blocking discovery

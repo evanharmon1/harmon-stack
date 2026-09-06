@@ -62,6 +62,12 @@
 - [ ] 2.10 In the harmon-devkit follow-on, paginate marker discovery across
       the complete issue-comments endpoint and test that a later-page marker
       prevents duplicate initialization.
+- [ ] 2.11 In the harmon-devkit follow-on, render next-action values as neutral
+      prose and add a deny-list test proving the body contains no `@codex
+      review`, `@claude`, or other `@`-mention activation substring.
+- [ ] 2.12 In the harmon-devkit follow-on, re-read the head after each
+      conditional write and test the exact post-check head race: immediately
+      overwrite the marker as stale and requiring re-evaluation.
 
 ## 3. Harmon-devkit follow-on (separate issue; not implemented here)
 
@@ -80,6 +86,9 @@
       the updater/fingerprint projection release, sync the released version,
       and record that prerequisite before accepting the harmon-init workflow
       change.
+- [ ] 3.5 Keep `use_foreman=true` profiles excluded from the v1 capability until
+      a compatible pinned Foreman release has its own marker/readiness tests;
+      record the pin bump before enabling the capability for those PRs.
 
 ## 4. Gates
 
