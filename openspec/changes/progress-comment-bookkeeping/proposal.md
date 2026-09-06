@@ -62,3 +62,17 @@ the harmon-devkit `shepherd`, `gauntlet`, and `track-work` skills. Related
 upstream work is harmon-devkit issue #461 (latest-run-per-check, in progress)
 and issue #490 (`gh run rerun` replays the stored payload); those constraints inform the
 event and run-correlation design but are not implemented by this proposal.
+
+## Open design questions
+
+These questions carry the two round-4 P1s for maintainer review; they are not
+resolved by this proposal and must be settled before implementation:
+
+- **Q1. Untrusted lookalike markers.** Reconcile the fail-closed update rule in
+  the specification (approximately lines 28–30) with the non-blocking discovery
+  rule in the specification (approximately lines 14–16) and design. Decide
+  which rule wins and what the updater does when an untrusted lookalike exists.
+- **Q2. Atomic comment updates.** GitHub's issue-comment API has no ETag,
+  `If-Match`, or lock primitive in the current contract. Decide the concurrency
+  mechanism—such as single-writer by construction, generation with read-back
+  verification, or a GitHub App check-run lock—before implementation.

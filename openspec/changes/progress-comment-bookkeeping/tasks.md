@@ -1,3 +1,11 @@
+- [ ] 0.1 Settle proposal open design question Q1 in `proposal.md` and
+      `design.md`: choose the authoritative behavior when an untrusted marker
+      lookalike exists, reconciling fail-closed updates with non-blocking
+      discovery.
+- [ ] 0.2 Settle proposal open design question Q2 in `proposal.md` and
+      `design.md`: choose an implementable concurrency mechanism for issue
+      comments before writing the updater.
+
 ## 1. Workflow trigger behavior (harmon-init)
 
 - [ ] 1.1 Add root/template regression assertions that release-content and

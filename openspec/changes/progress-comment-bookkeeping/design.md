@@ -132,5 +132,16 @@ File a separate harmon-devkit issue with this scope:
 
 ## Open Questions
 
-None. The remaining implementation choices belong inside the already-bounded
-harmon-devkit follow-on and do not change this contract.
+The two round-4 P1s are intentionally carried as maintainer-owned design
+questions rather than resolved here:
+
+- **Q1. Untrusted lookalike markers:** reconcile the fail-closed update rule with
+  non-blocking discovery and decide how an updater behaves when a lookalike
+  exists.
+- **Q2. Atomic comment updates:** choose a concurrency mechanism that the
+  GitHub issue-comment API can support before implementation; the current
+  alternatives are single-writer by construction, generation with read-back
+  verification, or a GitHub App check-run lock.
+
+The remaining implementation choices belong inside the harmon-devkit follow-on
+after Q1 and Q2 are settled.
