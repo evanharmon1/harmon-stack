@@ -28,10 +28,16 @@ credentials.**
 - Remove `devcontainer-build.yml`'s workflow-level `paths:` filters from
   `push` and `pull_request`; add a `merge_group:` trigger; add
   `pull_request: branches: [main]`.
-- Gate the existing `build` job on `devcontainer-changes`' output. Add a
-  merge_group credential-free path: skip `docker/login-action` and blank
-  `cacheFrom` for `github.event_name == 'merge_group'`, so a queued build
-  never authenticates to the registry.
+- Gate the existing `build` job on `devcontainer-changes`' output and
+  exclude `merge_group` from it outright. Add a dedicated
+  `build-merge-group` job for that event, declaring only
+  `permissions: {contents: read}` (no `packages` scope at all) and no login
+  step under any condition — a same-file runtime guard inside a shared job
+  is not a credential boundary, since `merge_group` runs the workflow
+  definition from the queued candidate tree itself. A workflow-level
+  `permissions: {contents: read}` floor covers `devcontainer-changes` and
+  `devcontainer-verify`, which run on every event and declare no permission
+  of their own.
 - Gate the existing `devcontainer-assert-bot` job on `devcontainer-changes`'
   output and stand it down entirely for `merge_group` (its cache needs a
   registry login it must never receive on queued content, and its cache
