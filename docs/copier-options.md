@@ -59,7 +59,7 @@ In prompt order, as defined in `copier.yml`. "Asked when" is the question's
 | 23 | `use_codex_review` | bool | no | always | `docs/guides/codex-review.md`, `codex-review.sh`, `codex-gate.sh`, `task challenge` / `task review` |
 | 24 | `use_codex_cloud_review` | bool | no | `use_codex_review` | Makes a terminal Codex review a **required shepherd signal** — **validator** |
 | 25 | `use_coderabbit` | bool | no | always | `.coderabbit.yaml` + bot trust |
-| 26 | `devcontainer` | bool | **yes** | always | The whole dual-profile `.devcontainer/`, `devcontainer-build.yml`, 3 scripts, 4 guides — **validator** rejects `use_foreman` without it |
+| 26 | `devcontainer` | bool | **yes** | always | The whole dual-profile `.devcontainer/`, `devcontainer-build.yml`, 4 scripts, 4 guides — **validator** rejects `use_foreman` without it |
 | 27 | `use_statusline_pr_lookup` | bool | no | `devcontainer` | `statusline-pr-lookup.enabled`; read-only, bounded cached `gh pr view` fallback when Claude omits PR data — requires authenticated GitHub CLI and never prompts |
 | 28 | `devcontainer_coder_folder_uri` | str | `""` | `devcontainer` | Optional captured `vscode-remote://dev-container+…` URI for the personal Coder README badge; **validator**, empty keeps only the local fallback |
 | 29 | `use_antigravity_cli` | bool | no | `devcontainer` | Prompt-free Google Antigravity CLI in the bot profile — **validator** |
@@ -163,7 +163,7 @@ and copier drops the path.
 
 | Condition | Renders (selection) |
 |---|---|
-| `devcontainer` | `.devcontainer/`, `devcontainer-build.yml`, 3 devcontainer scripts, 4 guides |
+| `devcontainer` | `.devcontainer/`, `devcontainer-build.yml`, 4 devcontainer scripts, 4 guides |
 | `devcontainer and use_statusline_pr_lookup` | `.devcontainer/config/statusline-pr-lookup.enabled` |
 | `use_release_please` | `release.yml`, `release-please-config.json`, `.release-please-manifest.json`, `.markdownlint-cli2.jsonc`, 3 release scripts |
 | `use_node` | `.env.example`, `pnpm-workspace.yaml`, `prettier.config.cjs`, `.prettierignore`, 3 pnpm/e2e scripts |

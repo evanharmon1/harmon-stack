@@ -103,6 +103,7 @@ jobs:
       - run: task test:link-claude-json
       - run: task test:image-staleness
       - run: task test:open-devcontainer
+      - run: task test:devcontainer-changed
 [% endif %]
 
   # Metadata-only by design: this executes the trusted default-branch script,
