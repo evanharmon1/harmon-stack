@@ -123,3 +123,19 @@ registry cache, SHALL NOT run on `merge_group`.
 - **THEN** the bot-autonomy container assertion job does not run, and
   `devcontainer-verify` treats its skip as the expected, passing outcome for
   that event
+
+### Requirement: No job in the workflow relies on the ambient default token permission
+Every job in `devcontainer-build.yml` that runs on `merge_group` SHALL
+declare an explicit `permissions:` — either its own job-level block or a
+workflow-level default — narrower than or equal to what that job actually
+needs, so that none of them depend on this repository's live, ambient
+default token permission (a setting outside this file that can grant
+broader scopes, including `packages`, than this workflow intends).
+
+#### Scenario: the change detector and aggregator inherit a narrow floor
+- **WHEN** `devcontainer-changes` or `devcontainer-verify` runs on any
+  event, `merge_group` included
+- **THEN** it holds a token scoped by this workflow's own declared
+  `permissions:` (a workflow-level default, since neither job declares its
+  own), not by whatever this repository's ambient default token permission
+  happens to be set to

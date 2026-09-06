@@ -66,15 +66,28 @@
       the existing fork check. Verify the job is skipped when the detector
       reports `false` (traced by hand; exercised end-to-end once the PR is
       open).
-- [x] 3.2 Guard the `docker/login-action` step with
-      `if: github.event_name != 'merge_group'`, and make the
-      `devcontainers/ci` step's `cacheFrom` input empty when
-      `github.event_name == 'merge_group'` (leave `cacheTo`/`push` as they
-      are — already conditioned on `push`). Add a code comment stating why:
-      GitHub does not expose the queued PR's fork-vs-same-repo origin on
-      `merge_group`. Verify by grepping the job for exactly one
-      `docker/login-action` step guarded by that `if:`, and confirm no other
-      step in this job references `secrets.GITHUB_TOKEN` unconditionally.
+- [x] 3.2 **Superseded by challenge round 1** (2026-09-05): a same-file
+      runtime guard (`if: github.event_name != 'merge_group'` on the login
+      step) is not a real credential boundary, because `merge_group` runs
+      the workflow definition from the queued candidate tree itself — a PR
+      that also edits this file could simply omit that guard from its own
+      copy and use the job's still-`packages: write` token directly. `build`
+      now excludes `merge_group` outright via its job-level `if:`, and a new
+      dedicated `build-merge-group` job (task 3.2a) handles that event
+      instead, with `permissions: {contents: read}` and no login step under
+      any condition — a boundary GitHub enforces before any step runs,
+      immune to an in-file runtime edit. See design.md - Decisions and
+      Alternatives considered for the full reasoning. Verify by confirming
+      `build`'s `if:` includes `github.event_name != 'merge_group'` and that
+      its steps carry no merge_group-conditional logic at all (the
+      unconditional shape task 3.1 originally described, now true again).
+- [x] 3.2a Add `build-merge-group`: `needs: [devcontainer-changes]`,
+      `if: needs.devcontainer-changes.outputs.changed == 'true' && github.event_name == 'merge_group'`,
+      `permissions: {contents: read}` (no `packages` key), the same 2-entry
+      matrix as `build`, no `docker/login-action` step, no `cacheFrom`,
+      `push: never`. Verify by grepping the job for the absence of any
+      `docker/login-action` reference and confirming its `permissions:`
+      block declares no `packages` scope.
 - [x] 3.3 Apply the identical changes to the template twin. Verify with
       `task test:dogfood-parity` (verbatim job body once flag literals are
       accounted for) or `test:dogfood-structure` as appropriate.
@@ -102,23 +115,45 @@
 ## 5. `devcontainer-verify` aggregator: the required context
 
 - [x] 5.1 Extend `devcontainer-verify`'s `needs:` to
-      `[devcontainer-changes, build, devcontainer-assert-bot]` and rewrite
-      its steps to mirror `terraform-verify` exactly, adapted: a
-      fork-boundary step (inline `check_skipped`, no checkout, expects all
-      three deps `skipped`), a non-fork checkout, "Verify the change
-      detector ran" (`devcontainer-changes` must be `success`), "Verify
-      deliberate no-op" (when `changed == 'false'`, `build` and
-      `devcontainer-assert-bot` must both be `skipped`), "Verify the build
-      succeeded" (when `changed != 'false'`, `build` must be `success`), and
-      "Verify the container assertion matched its predicate" (when
-      `changed != 'false'`, `devcontainer-assert-bot` expected result is
-      `success` unless `github.event_name == 'merge_group'`, else
-      `skipped`). Reuse `scripts/verify-ci-results.sh` unmodified for every
-      script-based check. Verify with `actionlint` and by hand-tracing every
+      `[devcontainer-changes, build, build-merge-group, devcontainer-assert-bot]`
+      (updated for task 3.2a's job split — `build` and `build-merge-group`
+      are mutually exclusive by event) and rewrite its steps to mirror
+      `terraform-verify` exactly, adapted: a fork-boundary step (inline
+      `check_skipped`, no checkout, expects all four deps `skipped`), a
+      non-fork checkout, "Verify the change detector ran"
+      (`devcontainer-changes` must be `success`), "Verify deliberate no-op"
+      (when `changed == 'false'`, `build`, `build-merge-group`, and
+      `devcontainer-assert-bot` must all be `skipped`), two mutually
+      exclusive "build succeeded" steps gated on
+      `github.event_name == 'merge_group'` (each checks its applicable build
+      job is `success` and the other is `skipped`), and "Verify the
+      container assertion matched its predicate" (when `changed != 'false'`,
+      `devcontainer-assert-bot` expected result is `success` unless
+      `github.event_name == 'merge_group'`, else `skipped`). Reuse
+      `scripts/verify-ci-results.sh` unmodified for every script-based
+      check. Verify with `actionlint` and by hand-tracing every
       `(fork, merge_group, changed)` combination against the table in
       design.md.
 - [x] 5.2 Apply the identical changes to the template twin. Verify with
       `task test:dogfood-structure`.
+- [x] 5.3 **Added by challenge round 3** (2026-09-06): add a workflow-level
+      `permissions: {contents: read}` block to `devcontainer-build.yml`
+      (mirroring `terraform.yml`'s exact pattern). `devcontainer-changes`
+      and `devcontainer-verify` both run on every event including
+      `merge_group` and declared no `permissions:` of their own, so without
+      this floor they would inherit this repository's ambient default token
+      permission — which can be broader than `contents: read`, entirely
+      outside this file's control — while checking out and executing
+      scripts from the queued candidate tree, undermining the
+      `build-merge-group` credential boundary from task 3.2a. `build`,
+      `build-merge-group`, and `devcontainer-assert-bot` already declare
+      their own job-level blocks, which override this default; also gave
+      `devcontainer-assert-bot` an explicit `permissions: {contents: read,
+      packages: read}` (it only ever pulls its cache) so no job in the file
+      relies on the ambient default any longer. Verify by confirming the
+      workflow-level block exists and that `devcontainer-changes` and
+      `devcontainer-verify` declare no job-level `permissions:` of their own
+      (so they inherit exactly this floor).
 
 ## 6. Branch protection ruleset (checked-in import template)
 

@@ -100,6 +100,23 @@ per CI event without diverging from what everyone else actually runs.
 Standing the job down is the same trade-off `terraform-plan-apply` already
 makes for the same reason.
 
+**A workflow-level `permissions: {contents: read}` floor, matching
+`terraform.yml`, plus an explicit `packages: read` on
+`devcontainer-assert-bot`.** Confirmed missing in challenge round 3:
+`devcontainer-changes` and `devcontainer-verify` both run on every event,
+`merge_group` included, and neither declared its own `permissions:` — so
+without a workflow-level default, they would inherit this repository's
+*ambient* default token permission (a live setting outside this file, which
+can be broader than `contents: read`) while checking out and executing
+queued-candidate-tree scripts, silently reopening the exact credential
+exposure `build-merge-group` exists to close. `build`, `build-merge-group`,
+and `devcontainer-assert-bot` already declare their own job-level blocks
+(which always override a workflow-level default), so the floor changes
+nothing for them; `devcontainer-assert-bot` additionally gets an explicit
+`packages: read` (it only ever pulls its cache, never pushes) purely so no
+job in the file depends on the ambient default any longer, not because it
+was newly exposed to `merge_group`.
+
 **Centralize verification in the aggregator; delete the leaf jobs' own
 self-checks.** Today's `devcontainer-assert-bot` has its own internal
 "Verify deliberate skip at the untrusted-fork boundary" step. `terraform.yml`

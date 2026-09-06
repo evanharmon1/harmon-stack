@@ -21,6 +21,18 @@ concurrency:
   group: devcontainer-build-${{ github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
+# Workflow-level floor, matching terraform.yml: `devcontainer-changes` and
+# `devcontainer-verify` both run on every event, `merge_group` included, and
+# neither declares its own `permissions:` — without this, they would
+# inherit whatever this repository's ambient default token permission is
+# (which can be "read and write", including `packages`, entirely outside
+# this file's control) while checking out and executing scripts from the
+# queued candidate tree. `build`, `build-merge-group`, and
+# `devcontainer-assert-bot` each declare their own job-level block, which
+# always overrides this default for that job.
+permissions:
+  contents: read
+
 jobs:
   devcontainer-changes:
     # Skipped for untrusted forks along with every other repository-controlled
@@ -261,6 +273,12 @@ jobs:
       (github.event_name != 'pull_request' ||
        github.event.pull_request.head.repo.full_name == github.repository)
     runs-on: ${{ fromJSON(vars.CI_RUNS_ON || '"ubuntu-latest"') }}
+    # Explicit, not inherited from the workflow-level default above: this job
+    # only ever pulls its registry cache, never pushes, so packages: write
+    # would be an unused grant.
+    permissions:
+      contents: read
+      packages: read
     # On a cache miss this job rebuilds independently of `build` (a separate
     # runner, so it cannot reuse that job's local result) and can take as
     # long as `build`'s own 45-minute budget; devcontainer-smoke.sh's `up`
