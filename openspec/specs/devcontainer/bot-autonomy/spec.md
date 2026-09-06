@@ -612,16 +612,22 @@ login/interactive shell, a Foreman-dispatched process, a cron job).
   `agy` if either exists from a prior run (before a Copier-answer toggle)
   or a stale image
 
-#### Scenario: bot apply installs the wrapper when enabled, whatever ensure-antigravity-cli.sh left
+#### Scenario: bot apply installs the wrapper when enabled, over any replaceable value ensure-antigravity-cli.sh left
 - **WHEN** `HARMON_BOT_AUTONOMY_ANTIGRAVITY` reads `enabled` and the
   `antigravity` module's `apply` runs in the bot profile, after
-  `ensure-antigravity-cli.sh` has already left `~/.local/bin/agy` in
-  whatever it found — one of states (a)-(c) under this capability's own
-  normal operation, or an unreconciled tampered value otherwise (see the
-  requirement above)
+  `ensure-antigravity-cli.sh` has already left `~/.local/bin/agy` as a
+  regular file or as any symlink — one of states (a)-(c) under this
+  capability's own normal operation, or a tampered-but-still-replaceable
+  value otherwise (see the requirement above)
 - **THEN** `apply` creates or overwrites `~/.local/bin/agy` with the
-  flag-injecting wrapper script regardless, since installing the wrapper
-  does not depend on any particular prior state or content there
+  flag-injecting wrapper script regardless, since `install_wrapper`'s
+  `mv -f` replaces a regular file or any symlink cleanly whatever its
+  content. A literal directory at `agy` (or at `agy-real`, which an
+  unguarded reconcile step can point a symlink at) is a different,
+  replacement-blocking shape this scenario does not cover: `mv -f` nests
+  the wrapper inside it instead, and `apply` reports success without
+  having actually replaced anything there. That shape is out of scope for
+  this fix and tracked as issue `#1179`
 
 #### Scenario: bot apply does not touch agy when disabled — it is already absent
 - **WHEN** `HARMON_BOT_AUTONOMY_ANTIGRAVITY` is not `enabled` and the

@@ -18,10 +18,13 @@ implements it.
 
 - `ensure-antigravity-cli.sh` (+ its verbatim `template/` twin): on the
   system-binary-sufficient early return, remove `~/.local/bin/agy` only when
-  it is a dangling symlink or a symlink to an existing directory — the two
-  shapes that would make a later `mv -f` (`bot-autonomy/antigravity.sh`'s
-  `install_wrapper`) or `ln -sfn` replacement fail or behave unexpectedly.
-  Every other pre-existing value — a regular file, a valid wrapper, or a
+  it is a dangling symlink or a symlink to an existing directory. A dangling
+  symlink is already a broken launcher on its own; a symlink to an existing
+  directory would make `bot-autonomy/antigravity.sh`'s `install_wrapper` —
+  its unguarded `mv -f` — land inside that directory instead of replacing
+  the link (a later `ln -sfn` replaces a symlink-to-directory cleanly and is
+  not the concern). Every other pre-existing value — a regular file, a
+  valid wrapper, or a
   symlink to an existing file — is left exactly as found. Nothing is ever
   deleted before a replacement exists on any other path; this branch
   continues to install nothing itself.
@@ -38,8 +41,9 @@ implements it.
   `ensure-antigravity-cli.sh` runs, in either profile. Collapse the "exactly
   one of four states" requirement (and its scenarios) back to three states,
   drop the state-(d)/#1171 exception from every scenario that carries it, and
-  make the "replacement succeeds" claims for `install_wrapper` and `ln -sfn`
-  unconditional.
+  make the "`install_wrapper` always replaces cleanly" claim unconditional —
+  a later `ln -sfn` already replaces a symlink-to-directory cleanly on its
+  own and needed no such claim.
 - `docs/guides/devcontainers.md` (+ its jinja `template/` twin): drop the
   state-(d)/#1171 caveat in the Antigravity section now that the early return
   self-heals a leftover that would otherwise block reconciliation.
