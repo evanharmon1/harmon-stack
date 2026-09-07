@@ -48,6 +48,7 @@ jobs:
         run: task check
       - run: task test:tasks
       - run: task test:agent-registry
+      - run: task test:result-schemas
       - run: task test:registry-drift
       - run: task test:registry-docs
       - run: task test:label-registry
@@ -61,6 +62,7 @@ jobs:
       - run: task test:renovate-pins
       - run: task test:lint-hygiene
       - run: task test:release-title
+      - run: task test:claim-release-merged
       - run: task test:setup-github-project
       - run: task test:sync-devkit-release
       - run: task test:devcontainer:image:automation

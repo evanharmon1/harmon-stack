@@ -70,6 +70,7 @@ jobs:
       - run: task test:session-cleanup
       - run: task test:setup-github
       - run: task test:agent-registry
+      - run: task test:result-schemas
       - run: task test:registry-drift
       - run: task test:registry-docs
       - run: task test:label-registry
@@ -83,6 +84,9 @@ jobs:
       - run: task test:lint-hygiene
 [% if use_release_please %]
       - run: task test:release-title
+[% endif %]
+[% if claim_release_available %]
+      - run: task test:claim-release-merged
 [% endif %]
 [% if project_management == 'github' %]
       - run: task test:setup-github-project
