@@ -3,7 +3,7 @@
 # an event instead of a session.
 #
 # Why: a claim is written by a session, but its release is owed after the
-# merge — an event no session is guaranteed to witness (/shepherd stops before
+# merge — an event no session is guaranteed to witness (/integrate stops before
 # the merge on policy). Without an event-driven release, every claim whose
 # session ends before the human merges strands: the assignee, the claim label
 # (`agent:*` or `claim:*`), and the claim comment keep advertising an agent mid-flight on work
@@ -505,7 +505,7 @@ read_login_set() {
         valid_login "$login" && [ "$login" = "$(lower "$login")" ] || return 1
         count=$((count + 1))
         [ "$count" -le 10 ] || return 1
-        printf '%s\n' "$normalized" | grep -Fxq "$login" && return 1
+        grep -Fxq "$login" <<<"$normalized" && return 1
         normalized="${normalized}${normalized:+$'\n'}$login"
     done
     [ "$count" -gt 0 ] || return 1
@@ -1023,7 +1023,7 @@ for owned_model_label in "$direct_model_label_added" "$model_label_added"; do
     esac
     if jq -e --arg l "$owned_model_label" '.labels[] | select(.name == $l)' \
         <<<"$issue_json" >/dev/null &&
-        ! printf '%s' "$labels_to_remove" | grep -Fqx "$owned_model_label"; then
+        ! grep -Fqx "$owned_model_label" <<<"$labels_to_remove"; then
         labels_to_remove="$labels_to_remove$owned_model_label"$'\n'
     fi
 done
