@@ -3,9 +3,10 @@
 The rule: **the orchestrator claims; subagents never do.** Before dispatching
 an issue, the orchestrating session claims it under
 [`track-work` §6](../SKILL.md#6-making-an-agents-work-visible-while-it-happens)
-— and `/claim` is user-invocable only, so the route is the user typing
-`/claim` for that issue: ask for it before dispatching. Neither a decision to
-delegate nor a conversational go-ahead authorizes the claim writes by itself.
+— and `/claim` is model-invocable, so the orchestrator invokes it itself for
+that issue before dispatching, rather than asking the user to type it.
+Neither a decision to delegate nor a conversational go-ahead authorizes the
+claim writes by itself.
 Several subagents can share one GitHub identity, and only the orchestrator
 knows when the delegated work is complete.
 
@@ -30,8 +31,9 @@ record plus the work in flight.
 ## Sequence
 
 1. Claim **every** issue the brief covers under the orchestrator's own
-   identity and claim family — the user types `/claim` for each — before
-   any dispatch. A brief that spans issues leaves none of them unclaimed.
+   identity and claim family — the orchestrator invokes `/claim` for each —
+   before any dispatch. A brief that spans issues leaves none of them
+   unclaimed.
 2. Prepare the checkout **before** dispatching: a feature branch off the
    default branch with a clean tree. The shipped implementer refuses to edit
    on the default branch and never creates a branch itself, so a dispatch
@@ -50,9 +52,9 @@ record plus the work in flight.
 5. Carry on exactly as for the orchestrator's own work. The report ends the
    dispatch, not the claim: while review, CI, the PR, or another delegate is
    still in flight the claim stays live and follows the ordinary lifecycle:
-   `/shepherd` retires the `claim:*` label at ready-for-review, and the close
+   `/integrate` retires the `claim:*` label at ready-for-review, and the close
    event or `/wrap` releases the claim itself. With several delegates on one
-   issue, do not take any of its PRs through `/shepherd`'s ready-for-review
+   issue, do not take any of its PRs through `/integrate`'s ready-for-review
    stop until every delegate for that issue has reported — that stop retires
    the label, and "implementing right now" is still true while another
    delegate runs.

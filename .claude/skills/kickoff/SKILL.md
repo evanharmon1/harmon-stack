@@ -3,8 +3,9 @@ name: kickoff
 description: >-
   Start-of-session ritual — get oriented in the repo (branch, working tree, open
   PRs/issues) and compose a descriptive session name, emitting a
-  copy-pasteable /rename command for the user. Invoke as /kickoff [topic or issue #].
-disable-model-invocation: true
+  copy-pasteable /rename command for the user. Use when a working session is
+  starting and needs orientation before beginning work. Invoke as /kickoff
+  [topic or issue #].
 allowed-tools: Read, Glob, Grep, Bash(git status:*), Bash(git branch --show-current), Bash(task --list-all:*), Bash(task status:*), Bash(gh pr list:*), Bash(gh issue list:*), Bash(gh label list:*)
 ---
 
@@ -44,7 +45,7 @@ than blocking the session start. A missing or failed creds probe is a
 summary says what couldn't be checked.
 
 **Sweep for stale claims.** The claim `/claim` makes has no owner once its
-session ends: `/shepherd` stops before the merge, `/wrap` leaves an open PR
+session ends: `/integrate` stops before the merge, `/wrap` leaves an open PR
 alone, and a personal-account board has no automation — so when the maintainer
 merges later, the assignee, `claim:*` label, and card status all
 survive with nobody left to clear them. Session start is where that gets

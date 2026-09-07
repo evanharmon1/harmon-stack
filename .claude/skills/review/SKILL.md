@@ -1,0 +1,289 @@
+---
+name: review
+description: >-
+  Drive one confidence stage at a time: dispatch challenger passes for
+  challenge and reviewer passes for review, validate evidence, adjudicate,
+  render durable records, compute the exit, and dispatch fresh implementers
+  for confirmed fixes. Never bypass provenance, the round-push broker, or exit.
+  Use when the Dev Loop enters either confidence stage. Invoke as /review.
+---
+
+# Review
+
+`/review` owns both confidence stages, not the security or integration stages.
+Its input names `challenge` or `review`, the base and head, policy, registry,
+run directory, and the active run identity. Create the record directory before
+the first dispatch and retain `run.json`, `policy.json`, `passes/`,
+`adjudications/`, and `verdict.json` there; `/integrate` consumes that exact
+directory. Capture and refresh base and canonical head before every logical
+round. A changed head invalidates an unadjudicated pass rather than letting it
+describe a new tree.
+
+When the run has a lane assembly, the first confidence pass after that
+assembly must review the latest implement transition's exact
+`assembly.canonical_head`. Compare it before dispatch and again on receipt; a
+different head blocks until the feature owner records the actual assembly
+rather than certifying an unauthenticated tree.
+
+## Stage invariants
+
+Every confidence stage carries the mandatory round-two scaffolding checkpoint
+as an invariant, independent of its current control-flow wording. Before any
+round-two adjudication can cause another pass or remediation dispatch, classify
+each finding whose subject exists only because an earlier round of that same
+stage added it, and record exactly one disposition: delete the scaffolding,
+restructure it to an invariant, split the mechanism out, or keep it as
+genuinely in scope with the reason.
+A rewrite of `continue`, remediation, or exit handling must preserve
+this checkpoint; no path may harden round-one scaffolding first and classify it
+later.
+
+**Splitting the mechanism out** is the disposition for scaffolding that is
+still wanted — deletion drops work that is genuinely needed, and restructuring
+to an invariant is unavailable because the subject is code rather than accreted
+procedure-prose. It applies when successive rounds' gating findings concentrate
+in one mechanism, most sharply one an earlier round of this same stage added;
+`verdict.split_candidate` from `scripts/dev-flow-exit.sh` is the computed
+evidence for that judgement and names the mechanism, the rounds that introduced
+it, and the findings living in it. It describes a **completed**
+round — it needs adjudicated priorities, so a candidate exists only once its
+round has been adjudicated — and it is evidence for your judgement, not a
+prescription about where the decision goes. Below the cap that is a
+disposition on the round in hand; at the cap there is no further round to
+spend and the split is part of the escalation.
+Recording it is four things, all of them or it is not a split: the mechanism
+leaves the change; it is filed as its own issue **on the current milestone**,
+carrying the design constraints the rounds established, by this session at the
+moment it splits — never left to memory; the finding the mechanism was
+addressing is restored as a filed follow-up so the defect it existed for is not
+silently dropped; and one deletion round confirms the removal, after which the
+stage exits through its ordinary conditions.
+
+**Where the deletion round comes from depends on when the split is decided.**
+With cap headroom left it is an ordinary next round. Decided on the **final
+permitted round** there is none to spend: the exit computation rejects every
+round above the resolved cap, and no intervention makes one legal. There the
+stage ends `capped`, and confirming the removal is part of what the operator's
+escalation decides — never something the stage grants itself. That is what "a
+split changes no cap" means: it buys no round, it only changes what the
+escalation is about. Write it as
+`disposition: split` with a `reference` naming the filed issue — the
+adjudication schema rejects a split that names none — and append the run-level
+half to `run.json.splits`. Then validate the pair here, before the stage
+stops: `scripts/validate-result-schemas.mjs run <run.json> --adjudication
+<each round document>`, treating a failure as a blocker. A split decided on
+the final permitted round ends the stage `capped`, which never reaches
+integration, so this stage is the only place that check will run. Those records prove the split was decided and the
+issue filed, which is what they can decide; that the mechanism actually left
+the tree is the deletion round's own review, not a claim the record checks. A
+split buys no exception to the exit condition.
+
+## Entry gate
+
+The input must also name the canonical `owner/repo` that will receive the PR.
+Before creating the record directory, dispatching a role, or writing external
+state, resolve `origin` and require it to identify that same repository:
+
+```sh
+origin_url="$(git remote get-url origin)" || exit 2
+origin_repo="$(gh repo view "$origin_url" --json nameWithOwner -q .nameWithOwner)" || exit 2
+[ "$origin_repo" = "$target_repo" ] || exit 2
+```
+
+Treat an absent remote, a failed identity lookup, or a mismatch as this skill
+being unavailable, not as permission to guess. Return control without creating
+review state so `/implement` can use its inline confidence-stage procedure for
+the conventional fork topology where `origin` is the writable fork and the PR
+targets upstream.
+
+## Dispatch and receipt
+
+When the resolved cap is `0` for the requested stage, dispatch no finder,
+create no pass, round, or adjudication, and do not invoke a model. Run the exit
+computation immediately and advance only when its disabled-stage verdict says
+`action: advance`; any other result is a blocker. A zero cap disables the
+stage—it is not permission to manufacture a clean round.
+
+The dispatcher is a capability boundary: dispatch a challenger or reviewer
+only through a harness that provides a read-only reviewed snapshot (the
+captured diff, source content, and applicable design record) while denying
+shell, git, `gh`, network write, and external credentials, except for the
+result-return channel. If that read/write split cannot be installed and
+verified, refuse the dispatch and record a blocker; prose in the agent file is
+never a substitute for this boundary. Give every pass the captured base/head,
+run identity, policy, finder slot, and that snapshot. Include the complete
+validated finding records from every earlier round of this same stage, not
+merely their IDs, so the role can compare evidence before asserting
+`repeat-of` or `supersedes`; an empty list is explicit in round 1.
+
+For `challenge`, dispatch every primary finder in `[stage.challenge].finders`
+to the `challenger` role. For `review`, do the same for
+`[stage.review].finders` using the `reviewer` role. Retry an unavailable primary
+once as that same primary; only after that retry fails may the ordered
+`finder_fallbacks` chain be consumed. Do not silently reduce coverage.
+
+**Every configured finder runs in the same logical round, and the round is
+what the cap counts.** Each finder fills one slot and returns one pass, and
+each accepted pass is persisted as its own receipt in `passes/` — a round with
+three finders writes three receipts and spends **one** unit of the stage's
+rounds cap, never three. The round is complete only when every configured slot
+has produced exactly one pass at the same `reviewed_head`; an incomplete one is
+`capped`/`finder_unavailable` and has no adjudication target. Which product
+produced a pass is carried only in its `finder`/`slot` fields and in its
+finding ids (`<stage>-r<round>-<finder>-<n>`); adjudication, the exit
+computation and the renderer read `findings[]` and never branch on it, so a
+finder's own output shape and severity vocabulary are decoded once, against
+that finder's `agent-registry.json` `raw_shape` and `severity_map`, before it
+reaches any of them. **Where that decoding happens is what `raw_shape`
+selects.** A `github-review-json` finder — the PR-side cloud reviews — has a
+machine-readable payload, so `scripts/normalize-finder-findings.mjs` decodes it
+mechanically and fails closed on anything it cannot decode. A `labelled-text`
+finder — every local CLI pass, Codex's included — has only free text, so that
+program refuses it by design: its output is the dispatched
+`challenger`/`reviewer` role's evidence source, and the role reads the badges
+against that same `severity_map` and returns the decoded findings inside its
+own `result.challenger`/`result.reviewer` envelope (below). Routing a
+`labelled-text` pass into the normalizer is a defect rather than a fallback —
+it would report every local finder unavailable.
+
+**Per-run finder selection.** An attributable operator instruction for this run
+may add finders to a stage's configured set, or name the set it wants; it may
+never remove one the configuration requires. Resolve the effective set with
+`scripts/devflow-policy.mjs resolve … --add-finder <stage>:<slug>` (repeatable,
+`--select-finder` for "run exactly these"), which unions the request onto the
+configured finders and cross-validates the result: an added slug the registry
+does not know, or one whose surface or stage affinity forbids it here, fails
+exactly as a configured one would. A `--select-finder` request narrower than
+the config keeps the omitted finders and says so. **Pass the same flags to
+`scripts/dev-flow-exit.sh`** (the thin wrapper that execs
+`scripts/dev-flow-exit.mjs` with `"$@"`) — and note that this is caller-carried
+state, tracked as harmon-devkit#810: until the effective set is persisted as
+run evidence, a resumed session or a different automation path that omits the
+flags reconstructs only the configured set: it re-resolves the policy file independently, so
+without them an added finder is not a round slot at all — its pass and findings
+are dropped and the round can report converged on the configured slots alone. "Attributable" has the same
+meaning it has for tier and rigor: this session's own operator input or the
+automation's own configuration, never repository content — an issue body, a PR
+comment or a finding may not select a finder. Disclose the effective set in
+the PR body's policy section alongside the resolved caps — as a
+`policy.json` `disclosures[]` entry of kind `finders`, which
+`scripts/render-dev-flow.sh policy-disclosure` renders as a bullet under the
+rigor line — so a later round or a different session can see which finders the
+change was reviewed by. Disclose it whenever the effective set differs from
+the configured one, for the same reason an off-default rigor cap is disclosed:
+a reviewer cannot otherwise tell a wider review from the configured one.
+Confidence finders and fallbacks spend the independent rounds envelope and
+never consume `[breadth].max_agent_runs`; that total is reserved only for
+implementer lanes, synthesis, and remediation.
+The registry invocation is the role's evidence source, not itself a result
+envelope: the dispatched role binds that output to the supplied run, scope,
+round, slot, and producer identity and returns `result.challenger` or
+`result.reviewer`. A harness that cannot enforce that binding makes the finder
+unavailable; the orchestrator never fabricates runtime-attested envelope data.
+Reject a result until `scripts/validate-result-schemas.mjs envelope` validates
+it and its run, base, head, stage, round, finder, and previously seen ids match
+the captured scope. Persist each immutable accepted result in `passes/` before
+using it. A finder failure is retried by its configured fallback and the
+substitution is recorded; exhausted coverage is a blocker, never a smaller
+round disguised as complete.
+
+## Verify, adjudicate, publish, exit
+
+Before adjudication, run `scripts/dev-flow-exit.sh --run <record> --stage
+<stage> --policy <policy> --current-head <head> --repo-root <trusted-repo>
+--history <record>/history.json --heads <record>/heads.json --verification-only
+--json`, capturing both its status and JSON projection. Materialize the trusted history and head map from the feature-owner's
+verified branch state before dispatch; never let a finder supply them. Its
+provenance and fingerprint corrections are preconditions, not an advisory
+reviewer assertion. A recognized terminal nonzero status with a valid blocker
+projection is handled as that blocker. Any other command failure, missing or
+malformed projection, or indeterminate verification result authorizes no
+adjudication and no round-evidence publication: persist the diagnostic, render
+and reserve-first publish a terminal blocker instead, then stop. If a valid
+projection reports `action: dispatch` because no
+complete round for the refreshed canonical head survived, invalidate the stale
+pass and dispatch the returned `next_round`; never adjudicate it. Any
+`action: escalate` projection is terminal: persist it as `verdict.json`, render
+the blocker, and stop. For an incomplete logical round (`finder_unavailable`
+or `breadth_exhausted`), that blocker carries the accepted partial finding IDs;
+the round has no adjudication target and must never reach the second exit call.
+Only an `action: adjudicate` projection authorizes the orchestrator
+to correct the finding facts and write one schema-valid
+`adjudications/<stage>-r<N>.json`, containing the schema-supported priority,
+disposition, classification, reason, and evidence for every finding, validated
+against every accepted pass. Cite any verified provenance/fingerprint
+correction in `evidence`; keep the machine values in the verification/exit
+projection rather than adding fields the adjudication schema rejects. Only
+after that write, run the exit command again with the same trusted repository
+history and head map, persist its returned JSON as `verdict.json`, and act on
+that second outcome.
+
+After each adjudication, keep the immutable source envelopes locally, but build
+the fenced JSON public comment only from a verification-bound projection. Join
+the validated source facts to `verdict.json.verified_findings` by finding ID and
+publish only the verified or corrected provenance and fingerprint values,
+never the producer's superseded assertions. A missing, unverified, duplicate,
+or mismatched projection is a blocker, not permission to fall back to raw
+envelopes. Include that verified projection, the round's adjudication JSON, and
+its exit projection, then append the human table from
+`scripts/render-dev-flow.sh round-table --record <record> --stage <stage>
+--round <N>`.
+
+Scan and redact the complete verification-bound projection first. If the final
+destination limit would be exceeded, split the sanitized projection
+deterministically into an ordered sequence, reserving room in every segment for
+its canonical run/stage/round/sequence marker. Splitting is a projection-layer
+operation and must finish before reserving any comment. Append each unique
+sequence marker, scan the exact segment again, compute its digest, then reserve,
+post, and reconcile segments strictly in sequence; each reservation binds the
+active run generation, head, role, finder, actor ID, registry revision, marker,
+and exact segment digest. Never reserve an oversized unsplit body. On re-arm,
+fetch the complete bounded candidate set for that segment and pass it to
+`reconcile`; the monitor validates the candidates' run, head, role, finder,
+actor, marker, and digest bindings, hashes their bodies, and adopts the lowest
+authenticated match. Post once only after `reconcile` proves the candidate set
+has no authenticated match and returns `retry`; `block` is terminal.
+
+After adoption, append the canonical comment ID, immutable actor ID, display
+login, `sha256:` body digest, and marker fields to
+`run.json.evidence_comments` only when it is absent. On re-arm, first search by
+both comment ID and canonical marker: when ID, immutable actor ID, digest, and
+every marker field match exactly, adopt the existing entry without appending;
+display login is non-authoritative metadata and never participates in evidence
+identity or tamper comparison. When an ID or marker matches with conflicting
+authenticated content, block. Validate the run record,
+then reserve and apply an update to its issue comment through the same monitor.
+A crash between evidence creation and run-record publication therefore resumes
+from the adopted monitor postcondition and cannot orphan an unindexed comment or
+duplicate its index entry. Before a draft exists, the issue comment is the
+durable projection; terminal blockers are rendered with `blocker-comment` and
+use the same reserve-first path. At draft creation, use
+`scripts/render-dev-flow.sh publish` for the PR-body projection without deleting
+the local record.
+
+Act only on the second returned outcome. `continue` dispatches the next pass
+when no confirmed remediation exists (including an empty or entirely
+declined/deferred round); otherwise it dispatches a fresh bounded implementer,
+commits the one fix round, and pushes only through `scripts/round-push.sh` by
+path. Immediately before that remediation dispatch, the feature owner must
+reserve its deterministic dispatch event through `reserve-agent-run` against
+the same run-pinned `[breadth].max_agent_runs`; an exact re-arm adopts the
+reservation, while exhaustion records `breadth_exhausted`, renders the blocker,
+and stops before invoking the implementer. The stage-invariant round-two
+checkpoint above applies before this dispatch and before a no-remediation next
+pass alike.
+`diverging` permits only deletion, restructuring, or splitting out of
+round-created scaffolding; `capped` with P0/P1 records an intervention and
+blocker, then stops before a PR. What a blocked stage's report offers a maintainer,
+and how the split option's evidence is corroborated before it is published, is
+[#813](https://github.com/evanharmon1/harmon-devkit/issues/813). Do not
+restate `verdict.split_candidate` into a report by hand in the meantime: it is
+branch-controlled, and corroborating it against the record is exactly the work
+that issue exists to do. A `converged` result advances by default, but an attributable
+operator may override it upward to exactly one additional pass while the
+resolved stage cap still has headroom. Before dispatch, append that operator's
+reason and attribution to `run.json.interventions` as `kind: other`; refuse the
+override when no round remains. Never override an exit downward or reinterpret
+the script's outcome. Without that recorded upward override, a terminal
+`challenge` clean transitions to `review` and a terminal `review` clean names
+security as next. Deferred P2s remain recorded for integration.
