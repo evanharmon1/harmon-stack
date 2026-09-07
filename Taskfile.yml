@@ -90,6 +90,7 @@ tasks:
       - task: test:label-registry
       - task: test:tasks
       - task: test:ci-results
+      - task: test:audit-ruleset
       - task: test:devcontainer-changed
       - task: test:output
       - task: test:status
@@ -634,6 +635,16 @@ tasks:
     desc: "Report root<->template drift for jinja twins (report, not a gate; --summary for names only)"
     cmds:
       - ./scripts/audit-dogfood.sh {{.CLI_ARGS}}
+
+  audit:ruleset:
+    desc: Compare the checked-in branch ruleset with GitHub's live ruleset (read-only)
+    cmds:
+      - ./scripts/audit-ruleset.sh
+
+  test:audit-ruleset:
+    desc: Unit-test ruleset audit normalization with offline fixtures
+    cmds:
+      - ./scripts/test-audit-ruleset.sh
 
   test:codex-review:
     desc: Unit-test codex-review.sh target selection (offline, stubbed codex)

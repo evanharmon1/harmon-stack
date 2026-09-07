@@ -41,6 +41,21 @@ workflow, and add it back.
 `merge_queue` rule with `422 Invalid rule 'merge_queue'`. The UI import handles
 every rule type and is the GitHub-native way to apply an exported ruleset.
 
+### Auditing live ruleset drift
+
+Run `task audit:ruleset` after a template update or a manual ruleset change to
+compare the checked-in import file with the live ruleset named in it. The audit
+uses GitHub's read-only ruleset API, ignores server-owned ids and timestamps,
+sorts rules and required-check contexts, and prints a diff when policy fields
+drift. Exit status 2 means GitHub access, repository discovery, or ruleset
+lookup was unavailable; it is not a clean result.
+
+The audit is deliberately read-only. Apply a confirmed change manually in
+Settings → Rules → Rulesets → Protect Main, because the REST API is not a safe
+idempotent replacement: it can create duplicates and currently rejects the
+`merge_queue` rule. Re-run the audit after the UI change and update the checked-in
+import template separately when the intended policy changes.
+
 ## Dependabot and Renovate
 
 Routine updates and vulnerability-remediation PRs are owned by **Renovate**
@@ -167,6 +182,7 @@ This mirrors the importable
         "dismiss_stale_reviews_on_push": true,
         "required_reviewers": [],
         "require_code_owner_review": true,
+        "require_extra_approval_for_unattributed_changes": true,
         "require_last_push_approval": true,
         "required_review_thread_resolution": true,
         "allowed_merge_methods": ["squash", "rebase"]
@@ -258,6 +274,7 @@ This is the core rule that prevents the AI agent from pushing directly to `main`
 | ----------------------------------- | ---------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `required_approving_review_count`   | `1`                    | At least one approving review required before merge                                                                                                                                                                           |
 | `require_code_owner_review`         | `true`                 | The approving review **must** come from a designated code owner (see CODEOWNERS file). A review from the bot or any non-code-owner does not satisfy this.                                                                     |
+| `require_extra_approval_for_unattributed_changes` | `true`                 | Requires an additional approval when a pull request contains changes without an attributable actor.                                                                                                                           |
 | `require_last_push_approval`        | `true`                 | The person who pushed the most recent commit cannot be the one to approve it. Since the bot pushes, the bot cannot self-approve — even if it could submit reviews. A human code owner must approve after the bot's last push. |
 | `dismiss_stale_reviews_on_push`     | `true`                 | If the bot pushes new commits after a human approves, the approval is dismissed and the human must re-review. Prevents a pattern where the bot gets approval, then pushes different code and merges.                          |
 | `required_review_thread_resolution` | `true`                 | All review comments must be resolved before merge. Prevents merging while a human reviewer still has open concerns.                                                                                                           |
