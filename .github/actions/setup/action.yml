@@ -49,17 +49,26 @@ runs:
         # The helper probes for a package manager: `self-hosted` implies only
         # the `linux` label, so apt-get cannot be assumed.
         ./scripts/ensure-file.sh
-        if ! command -v shellcheck >/dev/null 2>&1; then
-          # renovate: datasource=github-releases depName=koalaman/shellcheck extractVersion=^v(?<version>.+)$
-          SHELLCHECK_VERSION=0.10.0
+        # renovate: datasource=github-releases depName=koalaman/shellcheck extractVersion=^v(?<version>.+)$
+        SHELLCHECK_VERSION=0.10.0
+        installed_shellcheck_version=
+        while IFS= read -r line; do
+          case "$line" in
+            "version: "*) installed_shellcheck_version="${line#version: }"; break ;;
+          esac
+        done <<<"$(shellcheck --version 2>/dev/null || true)"
+        if [ "$installed_shellcheck_version" != "$SHELLCHECK_VERSION" ]; then
           curl -fsSL --retry 3 -o /tmp/shellcheck.tar.xz \
             "https://github.com/koalaman/shellcheck/releases/download/v${SHELLCHECK_VERSION}/shellcheck-v${SHELLCHECK_VERSION}.linux.x86_64.tar.xz"
           tar -xJf /tmp/shellcheck.tar.xz -C /tmp
           sudo install -m 0755 "/tmp/shellcheck-v${SHELLCHECK_VERSION}/shellcheck" /usr/local/bin/shellcheck
         fi
-        if ! command -v shfmt >/dev/null 2>&1; then
-          # renovate: datasource=github-releases depName=mvdan/sh extractVersion=^v?(?<version>.+)$
-          SHFMT_VERSION=3.13.1
+        # renovate: datasource=github-releases depName=mvdan/sh extractVersion=^v?(?<version>.+)$
+        SHFMT_VERSION=3.13.1
+        installed_shfmt_version=
+        IFS= read -r installed_shfmt_version <<<"$(shfmt --version 2>/dev/null || true)"
+        installed_shfmt_version="${installed_shfmt_version#v}"
+        if [ "$installed_shfmt_version" != "$SHFMT_VERSION" ]; then
           # Raw-binary download: fail closed on a checksum mismatch (a version
           # bump must update the pinned hash). Archive downloads (shellcheck,
           # actionlint) already fail loudly at extract time on corruption; a
@@ -70,9 +79,12 @@ runs:
           echo "${SHFMT_SHA256}  /tmp/shfmt" | sha256sum -c -
           sudo install -m 0755 /tmp/shfmt /usr/local/bin/shfmt
         fi
-        if ! command -v actionlint >/dev/null 2>&1; then
-          # renovate: datasource=github-releases depName=rhysd/actionlint extractVersion=^v?(?<version>.+)$
-          ACTIONLINT_VERSION=1.7.12
+        # renovate: datasource=github-releases depName=rhysd/actionlint extractVersion=^v?(?<version>.+)$
+        ACTIONLINT_VERSION=1.7.12
+        installed_actionlint_version=
+        IFS= read -r installed_actionlint_version <<<"$(actionlint --version 2>/dev/null || true)"
+        installed_actionlint_version="${installed_actionlint_version#v}"
+        if [ "$installed_actionlint_version" != "$ACTIONLINT_VERSION" ]; then
           curl -fsSL --retry 3 "https://github.com/rhysd/actionlint/releases/download/v${ACTIONLINT_VERSION}/actionlint_${ACTIONLINT_VERSION}_linux_amd64.tar.gz" \
             | tar -xz -C /tmp actionlint
           sudo mv /tmp/actionlint /usr/local/bin/
