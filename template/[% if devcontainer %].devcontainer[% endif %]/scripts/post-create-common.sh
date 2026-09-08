@@ -64,7 +64,10 @@ reject_unexpected_workspace_mounts() {
     local allow_venv_mount="${3:-0}"
     local mount_path mount_paths
 
-    [ -r "$mountinfo" ] || return 0
+    [ -r "$mountinfo" ] || {
+        echo "ERROR: workspace mount metadata is unavailable: ${mountinfo}" >&2
+        return 1
+    }
     mount_paths="$(awk -v root="$workspace_root" '
         {
             mount_path = $5
@@ -141,7 +144,19 @@ reconcile_workspace_ownership() {
     if workspace_venv_is_mount "$workspace_root"; then
         venv_is_mount=1
     fi
-    reject_unexpected_workspace_mounts "$workspace_root" /proc/self/mountinfo "$venv_is_mount" || return 1
+    case "$(uname -s)" in
+    Linux)
+        reject_unexpected_workspace_mounts "$workspace_root" /proc/self/mountinfo "$venv_is_mount" || return 1
+        ;;
+    *)
+        # The production container is Linux. Keep the helper runnable from
+        # macOS bash 3.2 tests, where procfs is not present; if a non-Linux
+        # environment does expose mountinfo, retain the same guard there.
+        if [ -r /proc/self/mountinfo ]; then
+            reject_unexpected_workspace_mounts "$workspace_root" /proc/self/mountinfo "$venv_is_mount" || return 1
+        fi
+        ;;
+    esac
 
     # Repair ownership before the container user reads repository metadata.
     # -xdev handles mounts on a different device, while -user avoids issuing
@@ -188,11 +203,12 @@ reconcile_workspace_ownership() {
         fi
         ;;
     *)
-        # A user-level core.hooksPath is intentionally not ours to chown. If
-        # it is writable, lefthook can continue to use it; if not, lefthook's
-        # existing failure remains visible instead of mutating an unrelated
-        # path.
-        echo "==> Leaving user-managed Git hooks path outside the workspace unchanged: ${hooks_dir}" >&2
+        # A user-level core.hooksPath is intentionally not ours to chown. The
+        # managed hooks cannot be installed there without mutating an
+        # unrelated path, so fail the lifecycle rather than claiming hooks are
+        # ready when Git will resolve a different directory.
+        echo "ERROR: refusing to continue with a Git hooks path outside the workspace: ${hooks_dir}" >&2
+        return 1
         ;;
     esac
 
@@ -218,10 +234,10 @@ ensure_workspace_directory() {
             return 1
         }
         if [ ! -d "$current" ]; then
-            sudo mkdir -p "$current"
+            sudo mkdir -p "$current" || return 1
         fi
-        sudo chown "$container_user" "$current"
-        sudo chmod u+rwx "$current"
+        sudo chown "$container_user" "$current" || return 1
+        sudo chmod u+rwx "$current" || return 1
         current="$(dirname "$current")"
     done
 }
@@ -252,7 +268,8 @@ install_lefthook_hooks() {
         fi
         ;;
     *)
-        echo "WARNING: skipping Lefthook installation for user-managed Git hooks path outside the workspace: ${hooks_dir}" >&2
+        echo "ERROR: refusing to install Lefthook outside the workspace: ${hooks_dir}" >&2
+        return 1
         ;;
     esac
 }

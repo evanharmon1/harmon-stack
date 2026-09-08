@@ -76,6 +76,9 @@ cat >"$fake_bin/sudo" <<'SUDO'
 #!/bin/sh
 set -eu
 printf '%s\n' "$*" >>"${SUDO_LOG:?SUDO_LOG is required}"
+if [ "${SUDO_FAIL:-}" = "${1:-}" ]; then
+    exit 1
+fi
 case "${1:-}" in
 chown)
     exit 0
@@ -147,13 +150,28 @@ if (
     cd "$repo"
     HOME="$home" XDG_CONFIG_HOME="$xdg" SUDO_LOG="$log" \
         PATH="$fake_bin:$PATH" bash -c \
-        'set -e; . "$1"; reject_unexpected_workspace_mounts() { return 1; }; reconcile_workspace_ownership "$2"' \
+        'set -e; . "$1"; uname() { printf "%s\\n" Linux; }; reject_unexpected_workspace_mounts() { return 1; }; reconcile_workspace_ownership "$2"' \
         _ "$helpers" "$xdg/git/config"
 ); then
     fail "a failed ownership boundary check was ignored"
 fi
 ! grep -Eq '^(find|chown|chmod|mkdir) ' "$log" ||
     fail "a failed ownership boundary check triggered privileged ownership changes"
+
+echo "==> ownership repair failures stop post-create"
+: >"$log"
+if SUDO_FAIL=chmod run_reconcile >/dev/null 2>"${tmp_root}/chmod.err"; then
+    fail "a hook-directory permission failure was ignored"
+fi
+
+echo "==> unavailable mount metadata fails closed"
+missing_mountinfo="${fixture}/missing-mountinfo"
+if bash -c 'uname() { printf "%s\\n" Linux; }; . "$1"; reject_unexpected_workspace_mounts "$2" "$3" 0' \
+    _ "$helpers" "$repo" "$missing_mountinfo" 2>"${tmp_root}/missing-mountinfo.err"; then
+    fail "unavailable mount metadata was accepted"
+fi
+grep -Fq "mount metadata is unavailable" "${tmp_root}/missing-mountinfo.err" ||
+    fail "unavailable mount metadata rejection was not explained"
 
 run_install() {
     (
@@ -256,18 +274,21 @@ for directory in "$repo/.config" "$repo/.config/git" "$repo/.config/git/hooks"; 
     [ -w "$directory" ] || fail "hooks ancestor is not writable: ${directory}"
 done
 
-echo "==> hooks paths outside the workspace are left unchanged"
+echo "==> hooks paths outside the workspace fail closed without external writes"
 git -C "$repo" config core.hooksPath "$unrelated/hooks"
-outside_resolved="$(run_reconcile 2>"${tmp_root}/outside.err")"
-[ "$outside_resolved" = "$repo" ] ||
-    fail "an out-of-workspace hooks path changed the resolved workspace: ${outside_resolved}"
+: >"$log"
+if run_reconcile >/dev/null 2>"${tmp_root}/outside.err"; then
+    fail "an out-of-workspace hooks path was accepted"
+fi
 ! grep -Fq "$unrelated" "$log" ||
     fail "an out-of-workspace hooks path triggered ownership mutation"
 : >"$lefthook_log"
-run_install 2>"${tmp_root}/outside-install.err"
+if run_install 2>"${tmp_root}/outside-install.err"; then
+    fail "Lefthook accepted an out-of-workspace hooks path"
+fi
 [ ! -s "$lefthook_log" ] ||
     fail "an out-of-workspace hooks path triggered Lefthook writes"
-grep -Fq "skipping Lefthook installation" "${tmp_root}/outside-install.err" ||
-    fail "an out-of-workspace hooks path did not produce a clear Lefthook warning"
+grep -Fq "refusing to install Lefthook outside the workspace" "${tmp_root}/outside-install.err" ||
+    fail "an out-of-workspace hooks path did not fail with a clear Lefthook error"
 
 echo "devcontainer git ownership: all cases passed"
