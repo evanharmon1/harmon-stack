@@ -31,16 +31,22 @@ sed -n '/^resolve_workspace_root()/,/^# --- End workspace ownership reconciliati
 [ -s "$helpers" ] || fail "could not extract workspace ownership helpers"
 grep -q '^reconcile_workspace_ownership()' "$helpers" ||
     fail "the extracted helpers do not include reconcile_workspace_ownership"
+grep -q '^install_lefthook_hooks()' "$helpers" ||
+    fail "the extracted helpers do not include install_lefthook_hooks"
 
 # The reconciliation must happen before the first explicit repository write.
 reconcile_line="$(grep -n '^WORKSPACE_ROOT="' "$post_create" | head -1 | cut -d: -f1)"
-lefthook_line="$(grep -n '^    lefthook install$' "$post_create" | head -1 | cut -d: -f1)"
+lefthook_line="$(grep -n '^    install_lefthook_hooks ' "$post_create" | head -1 | cut -d: -f1)"
 ownership_find_line="$(grep -n '^        sudo find' "$post_create" | head -1 | cut -d: -f1)"
 canonical_line="$(grep -n '^    canonical_workspace_root=.*sudo git' "$post_create" | head -1 | cut -d: -f1)"
 [ -n "$reconcile_line" ] && [ -n "$lefthook_line" ] ||
     fail "could not locate reconciliation or lefthook install in $post_create"
 [ "$reconcile_line" -lt "$lefthook_line" ] ||
     fail "workspace reconciliation occurs after lefthook install"
+grep -Fqx 'reconcile_workspace_ownership "$ENV_GITCONFIG"' "$post_create" ||
+    fail "workspace reconciliation is still hidden in command substitution"
+! grep -Fq 'WORKSPACE_ROOT="$(reconcile_workspace_ownership' "$post_create" ||
+    fail "workspace reconciliation still uses command substitution"
 [ -n "$ownership_find_line" ] && [ -n "$canonical_line" ] ||
     fail "could not locate ownership repair or Git canonicalization in $post_create"
 [ "$canonical_line" -lt "$ownership_find_line" ] ||
@@ -53,6 +59,7 @@ home="${fixture}/home"
 xdg="${fixture}/xdg"
 fake_bin="${fixture}/bin"
 log="${fixture}/sudo.log"
+lefthook_log="${fixture}/lefthook.log"
 mkdir -p "$repo" "$unrelated" "$home" "$xdg/git" "$fake_bin"
 repo="$(cd "$repo" && pwd -P)"
 unrelated="$(cd "$unrelated" && pwd -P)"
@@ -94,6 +101,13 @@ set -eu
 MOUNTPOINT
 chmod 0755 "$fake_bin/mountpoint"
 
+cat >"$fake_bin/lefthook" <<'LEFTHOOK'
+#!/bin/sh
+set -eu
+printf '%s\n' "$*" >>"${LEFTHOOK_LOG:?LEFTHOOK_LOG is required}"
+LEFTHOOK
+chmod 0755 "$fake_bin/lefthook"
+
 run_reconcile_at() {
     target_repo="$1"
     target_config="$2"
@@ -103,7 +117,7 @@ run_reconcile_at() {
         HOME="$home" XDG_CONFIG_HOME="$xdg" SUDO_LOG="$target_log" \
             MOUNTPOINT_MODE="${MOUNTPOINT_MODE:-mounted}" \
             PATH="$fake_bin:$PATH" bash -c \
-            '. "$1"; reconcile_workspace_ownership "$2"' _ "$helpers" "$target_config"
+            'set -e; . "$1"; reconcile_workspace_ownership "$2"; printf "%s\\n" "$RECONCILED_WORKSPACE_ROOT"' _ "$helpers" "$target_config"
     )
 }
 run_reconcile() {
@@ -127,22 +141,68 @@ grep -Fqx "chmod u+rwx ${repo}/.git/hooks" "$log" ||
     fail "ownership reconciliation touched an unrelated path"
 [ -w "$repo/.git/hooks" ] || fail "the hook fixture is not writable after reconciliation"
 
+echo "==> reconciliation failures stop before ownership mutation"
+: >"$log"
+if (
+    cd "$repo"
+    HOME="$home" XDG_CONFIG_HOME="$xdg" SUDO_LOG="$log" \
+        PATH="$fake_bin:$PATH" bash -c \
+        'set -e; . "$1"; reject_unexpected_workspace_mounts() { return 1; }; reconcile_workspace_ownership "$2"' \
+        _ "$helpers" "$xdg/git/config"
+); then
+    fail "a failed ownership boundary check was ignored"
+fi
+! grep -Eq '^(find|chown|chmod|mkdir) ' "$log" ||
+    fail "a failed ownership boundary check triggered privileged ownership changes"
+
+run_install() {
+    (
+        cd "$repo"
+        HOME="$home" XDG_CONFIG_HOME="$xdg" LEFTHOOK_LOG="$lefthook_log" \
+            PATH="$fake_bin:$PATH" bash -c \
+            'set -e; . "$1"; install_lefthook_hooks "$2"' _ "$helpers" "$repo"
+    )
+}
+
+echo "==> Lefthook uses the default hook path without force"
+: >"$lefthook_log"
+run_install
+grep -Fqx 'install' "$lefthook_log" ||
+    fail "the default hooks path did not use bare lefthook install: $(sed -n '1p' "$lefthook_log")"
+
+echo "==> Lefthook forces only an in-workspace custom hook path"
+git -C "$repo" config core.hooksPath .config/git/hooks
+: >"$lefthook_log"
+run_install
+grep -Fqx -- 'install --force' "$lefthook_log" ||
+    fail "an in-workspace custom hooks path did not use lefthook install --force"
+
 echo "==> unexpected nested mounts are rejected before ownership mutation"
 mountinfo="${fixture}/mountinfo"
 printf '42 35 0:42 / %s rw,relatime - bind /source rw,relatime\n' \
     "$repo/.venv" >"$mountinfo"
-if ! bash -c '. "$1"; reject_unexpected_workspace_mounts "$2" "$3"' \
-    _ "$helpers" "$repo" "$mountinfo"; then
+if ! bash -c '. "$1"; reject_unexpected_workspace_mounts "$2" "$3" "$4"' \
+    _ "$helpers" "$repo" "$mountinfo" 1; then
     fail "the configured .venv mount was unexpectedly rejected"
 fi
 printf '43 35 0:43 / %s rw,relatime - bind /source rw,relatime\n' \
     "$repo/foreign-mount" >>"$mountinfo"
-if bash -c '. "$1"; reject_unexpected_workspace_mounts "$2" "$3"' \
+if bash -c '. "$1"; reject_unexpected_workspace_mounts "$2" "$3" "$4"' \
     _ "$helpers" "$repo" "$mountinfo" 2>"${tmp_root}/mount.err"; then
     fail "an unexpected nested mount was accepted"
 fi
 grep -Fq "unexpected nested mount" "${tmp_root}/mount.err" ||
     fail "nested mount rejection did not explain the workspace boundary"
+
+ordinary_mountinfo="${fixture}/ordinary-mountinfo"
+printf '44 35 0:44 / %s rw,relatime - bind /source rw,relatime\n' \
+    "$repo/.venv/cache" >"$ordinary_mountinfo"
+if bash -c '. "$1"; reject_unexpected_workspace_mounts "$2" "$3" "$4"' \
+    _ "$helpers" "$repo" "$ordinary_mountinfo" 2>"${tmp_root}/ordinary-mount.err"; then
+    fail "a child mount under an ordinary .venv was accepted"
+fi
+grep -Fq "unexpected nested mount" "${tmp_root}/ordinary-mount.err" ||
+    fail "ordinary .venv child-mount rejection was not explained"
 
 echo "==> an ordinary in-workspace .venv is included instead of pruned"
 : >"$log"
@@ -203,5 +263,11 @@ outside_resolved="$(run_reconcile 2>"${tmp_root}/outside.err")"
     fail "an out-of-workspace hooks path changed the resolved workspace: ${outside_resolved}"
 ! grep -Fq "$unrelated" "$log" ||
     fail "an out-of-workspace hooks path triggered ownership mutation"
+: >"$lefthook_log"
+run_install 2>"${tmp_root}/outside-install.err"
+[ ! -s "$lefthook_log" ] ||
+    fail "an out-of-workspace hooks path triggered Lefthook writes"
+grep -Fq "skipping Lefthook installation" "${tmp_root}/outside-install.err" ||
+    fail "an out-of-workspace hooks path did not produce a clear Lefthook warning"
 
 echo "devcontainer git ownership: all cases passed"
