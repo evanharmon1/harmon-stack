@@ -76,13 +76,19 @@ esac
 SUDO
 chmod 0755 "$fake_bin/sudo"
 
-run_reconcile() {
+run_reconcile_at() {
+    target_repo="$1"
+    target_config="$2"
+    target_log="$3"
     (
-        cd "$repo"
-        HOME="$home" XDG_CONFIG_HOME="$xdg" SUDO_LOG="$log" \
+        cd "$target_repo"
+        HOME="$home" XDG_CONFIG_HOME="$xdg" SUDO_LOG="$target_log" \
             PATH="$fake_bin:$PATH" bash -c \
-            '. "$1"; reconcile_workspace_ownership "$2"' _ "$helpers" "$xdg/git/config"
+            '. "$1"; reconcile_workspace_ownership "$2"' _ "$helpers" "$target_config"
     )
+}
+run_reconcile() {
+    run_reconcile_at "$repo" "$xdg/git/config" "$log"
 }
 
 echo "==> a mismatched workspace requests reconciliation at the exact root"
@@ -120,6 +126,23 @@ safe_entries="$(HOME="$home" XDG_CONFIG_HOME="$xdg" \
     git config --file "$xdg/git/config" --get-all safe.directory)"
 [ "$(printf '%s\n' "$safe_entries" | grep -Fxc "$repo")" -eq 1 ] ||
     fail "repeated reconciliation duplicated safe.directory: ${safe_entries}"
+
+echo "==> a nested checkout cannot expand ownership reconciliation into its parent"
+escape_parent="${fixture}/workspaces/parent"
+escape_repo="${escape_parent}/nested"
+escape_xdg="${fixture}/escape-xdg"
+escape_log="${fixture}/escape-sudo.log"
+mkdir -p "$escape_repo" "$escape_xdg/git"
+git -C "$escape_parent" init -q
+git -C "$escape_repo" init -q
+git -C "$escape_repo" config core.worktree ../..
+if run_reconcile_at "$escape_repo" "$escape_xdg/git/config" "$escape_log" >/dev/null 2>"${tmp_root}/escape.err"; then
+    fail "a nested checkout with an expanding core.worktree was accepted"
+fi
+grep -Fq "outside the discovered workspace" "${tmp_root}/escape.err" ||
+    fail "the nested checkout rejection did not explain the workspace boundary"
+[ ! -s "$escape_log" ] ||
+    fail "the rejected nested checkout triggered privileged ownership changes"
 
 echo "==> missing in-workspace hooks ancestors become writable"
 git -C "$repo" config core.hooksPath .config/git/hooks

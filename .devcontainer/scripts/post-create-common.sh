@@ -52,7 +52,7 @@ resolve_workspace_root() {
 
 reconcile_workspace_ownership() {
     local env_gitconfig="$1"
-    local workspace_root git_dir default_hooks_dir hooks_dir container_user
+    local workspace_root canonical_workspace_root git_dir default_hooks_dir hooks_dir container_user
 
     workspace_root="$(resolve_workspace_root "$(pwd -P)")" || {
         echo "ERROR: could not resolve the repository/workspace root from $(pwd -P)" >&2
@@ -71,17 +71,22 @@ reconcile_workspace_ownership() {
     fi
 
     # Now that the marker path is trusted, let Git canonicalize the repository
-    # root and resolve the hooks path lefthook will write. Keep the canonical
-    # root in safe.directory too in case the working directory contained a
-    # symlink before `pwd -P` resolved it.
-    workspace_root="$(git -C "$workspace_root" rev-parse --path-format=absolute --show-toplevel)" || {
+    # root and resolve the hooks path lefthook will write. The marker walk is
+    # the ownership boundary: a nested checkout with a configured
+    # core.worktree must not make Git report a parent repository and expand the
+    # privileged traversal beyond that boundary.
+    canonical_workspace_root="$(git -C "$workspace_root" rev-parse --path-format=absolute --show-toplevel)" || {
         echo "ERROR: Git could not resolve the repository/workspace root at ${workspace_root}" >&2
         return 1
     }
-    if ! git config --file "$env_gitconfig" --get-all safe.directory 2>/dev/null |
-        grep -Fqx "$workspace_root"; then
-        git config --file "$env_gitconfig" --add safe.directory "$workspace_root"
-    fi
+    canonical_workspace_root="$(cd "$canonical_workspace_root" && pwd -P)" || {
+        echo "ERROR: Git reported an unusable repository/workspace root: ${canonical_workspace_root}" >&2
+        return 1
+    }
+    [ "$canonical_workspace_root" = "$workspace_root" ] || {
+        echo "ERROR: Git resolved a repository/workspace root outside the discovered workspace: ${canonical_workspace_root}" >&2
+        return 1
+    }
 
     git_dir="$(git -C "$workspace_root" rev-parse --path-format=absolute --absolute-git-dir)" || {
         echo "ERROR: Git could not resolve the Git directory for ${workspace_root}" >&2
