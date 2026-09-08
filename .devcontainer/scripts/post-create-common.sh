@@ -52,7 +52,7 @@ resolve_workspace_root() {
 
 reconcile_workspace_ownership() {
     local env_gitconfig="$1"
-    local workspace_root git_dir default_hooks_dir hooks_dir container_user container_group owner
+    local workspace_root git_dir default_hooks_dir hooks_dir container_user
 
     workspace_root="$(resolve_workspace_root "$(pwd -P)")" || {
         echo "ERROR: could not resolve the repository/workspace root from $(pwd -P)" >&2
@@ -97,20 +97,21 @@ reconcile_workspace_ownership() {
     esac
 
     container_user="$(id -un)"
-    container_group="$(id -gn)"
-    owner="${container_user}:${container_group}"
     # Stay on the bind-mounted filesystem. Generated Python projects mount a
-    # container-private .venv below the workspace; -xdev keeps this repair
-    # from recursively changing that unrelated volume. Changing only the
-    # owner preserves host-provided shared groups, while -h ensures an
-    # in-workspace symlink cannot redirect chown to an external target.
-    sudo find "$workspace_root" -xdev -exec chown -h "$container_user" {} +
+    # container-private .venv below the workspace; prune it explicitly even
+    # when a Linux bind mount and named volume report the same device, while
+    # -xdev handles mounts on a different device. Changing only the owner
+    # preserves host-provided shared groups, while -h ensures an in-workspace
+    # symlink cannot redirect chown to an external target.
+    sudo find "$workspace_root" -xdev \
+        -path "$workspace_root/.venv" -prune -o \
+        -exec chown -h "$container_user" {} +
 
     # post-create.sh copies the repository's managed hooks to .git/hooks even
     # when Git's effective core.hooksPath is a user-managed path elsewhere.
     # Create and repair that default directory without following symlinks.
     if [ ! -L "$default_hooks_dir" ]; then
-        ensure_workspace_directory "$workspace_root" "$default_hooks_dir" "$owner"
+        ensure_workspace_directory "$workspace_root" "$default_hooks_dir" "$container_user"
     fi
 
     hooks_dir="$(git -C "$workspace_root" rev-parse --path-format=absolute --git-path hooks)" || {
@@ -120,7 +121,7 @@ reconcile_workspace_ownership() {
     case "$hooks_dir" in
     "$workspace_root"/*)
         if [ "$hooks_dir" != "$default_hooks_dir" ]; then
-            ensure_workspace_directory "$workspace_root" "$hooks_dir" "$owner"
+            ensure_workspace_directory "$workspace_root" "$hooks_dir" "$container_user"
         fi
         ;;
     *)
@@ -128,7 +129,7 @@ reconcile_workspace_ownership() {
         # it is writable, lefthook can continue to use it; if not, lefthook's
         # existing failure remains visible instead of mutating an unrelated
         # path.
-        echo "==> Leaving user-managed Git hooks path outside the workspace unchanged: ${hooks_dir}"
+        echo "==> Leaving user-managed Git hooks path outside the workspace unchanged: ${hooks_dir}" >&2
         ;;
     esac
 
@@ -138,7 +139,7 @@ reconcile_workspace_ownership() {
 ensure_workspace_directory() {
     local workspace_root="$1"
     local directory="$2"
-    local owner="$3"
+    local container_user="$3"
     local current="$directory"
 
     case "$directory" in
@@ -156,7 +157,7 @@ ensure_workspace_directory() {
         if [ ! -d "$current" ]; then
             sudo mkdir -p "$current"
         fi
-        sudo chown "$owner" "$current"
+        sudo chown "$container_user" "$current"
         sudo chmod u+rwx "$current"
         current="$(dirname "$current")"
     done

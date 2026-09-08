@@ -89,12 +89,13 @@ echo "==> a mismatched workspace requests reconciliation at the exact root"
 resolved="$(run_reconcile)"
 [ "$resolved" = "$repo" ] ||
     fail "resolved workspace root was '$resolved', expected '$repo'"
-owner="$(id -un):$(id -gn)"
 container_user="$(id -un)"
-grep -Fqx "find ${repo} -xdev -exec chown -h ${container_user} {} +" "$log" ||
+grep -Fqx "find ${repo} -xdev -path ${repo}/.venv -prune -o -exec chown -h ${container_user} {} +" "$log" ||
     fail "workspace ownership was not reconciled at the resolved root"
-grep -Fqx "chown ${owner} ${repo}/.git/hooks" "$log" ||
+grep -Fqx "chown ${container_user} ${repo}/.git/hooks" "$log" ||
     fail "Git hooks ownership was not reconciled at the exact hooks path"
+! grep -Fq "chown ${container_user}:" "$log" ||
+    fail "Git hooks ownership repair reset a shared group"
 grep -Fqx "chmod u+rwx ${repo}/.git/hooks" "$log" ||
     fail "Git hooks were not made writable"
 ! grep -Fq "$unrelated" "$log" ||
@@ -130,7 +131,9 @@ done
 
 echo "==> hooks paths outside the workspace are left unchanged"
 git -C "$repo" config core.hooksPath "$unrelated/hooks"
-run_reconcile >/dev/null
+outside_resolved="$(run_reconcile 2>"${tmp_root}/outside.err")"
+[ "$outside_resolved" = "$repo" ] ||
+    fail "an out-of-workspace hooks path changed the resolved workspace: ${outside_resolved}"
 ! grep -Fq "$unrelated" "$log" ||
     fail "an out-of-workspace hooks path triggered ownership mutation"
 
