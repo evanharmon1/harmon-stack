@@ -3365,12 +3365,13 @@ TRUNCSHIM
 chmod +x "$trunc_shim/git"
 # Prove the shim behaves as described before relying on it.
 trunc_marker="$test_tmp/trunc-marker"
+trunc_probe_log="$test_tmp/trunc-probe.log"
 rm -f "$trunc_marker"
-PATH="$trunc_shim:$PATH" git worktree list --porcelain -z >/dev/null 2>&1 ||
-    fail "the truncation shim broke the unarmed enumeration (#963)"
-PATH="$trunc_shim:$PATH" WT_TRUNC_ARMED="$trunc_marker" git worktree list --porcelain -z >/dev/null 2>&1 ||
-    fail "the truncation shim failed the FIRST armed call, which must succeed as the capability probe (#963)"
-PATH="$trunc_shim:$PATH" WT_TRUNC_ARMED="$trunc_marker" git worktree list --porcelain -z >/dev/null 2>&1 &&
+(cd "$fixture" && PATH="$trunc_shim:$PATH" git worktree list --porcelain -z) >"$trunc_probe_log" 2>&1 ||
+    fail "the truncation shim broke the unarmed enumeration (#963): $(cat "$trunc_probe_log")"
+(cd "$fixture" && PATH="$trunc_shim:$PATH" WT_TRUNC_ARMED="$trunc_marker" git worktree list --porcelain -z) >"$trunc_probe_log" 2>&1 ||
+    fail "the truncation shim failed the FIRST armed call, which must succeed as the capability probe (#963): $(cat "$trunc_probe_log")"
+(cd "$fixture" && PATH="$trunc_shim:$PATH" WT_TRUNC_ARMED="$trunc_marker" git worktree list --porcelain -z) >"$trunc_probe_log" 2>&1 &&
     fail "the truncation shim did not fail the SECOND armed call (#963)"
 rm -f "$trunc_marker"
 
