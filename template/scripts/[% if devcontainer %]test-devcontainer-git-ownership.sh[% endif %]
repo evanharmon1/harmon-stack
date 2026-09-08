@@ -24,7 +24,10 @@ template_test="template/scripts/[% if devcontainer %]test-devcontainer-git-owner
 for required_file in "$test_script" "$post_create" "$bot_post_create"; do
     [ -r "$required_file" ] || fail "$required_file not found"
 done
-if [ -d template ]; then
+# The root checkout owns the Copier source tree and its dogfood answers. A
+# generated consumer may legitimately have a project directory named
+# "template", so the directory name alone is not a root-repository marker.
+if [ -f .dogfood-answers.yml ] && [ -d template ]; then
     for required_file in "$template_common" "$template_bot_post_create" "$template_test"; do
         [ -r "$required_file" ] || fail "$required_file not found"
     done
@@ -80,7 +83,7 @@ assert_managed_hook_script() {
         fail "$bot_script still chmods a wildcard hook path"
 }
 assert_managed_hook_script "$bot_post_create"
-if [ -d template ]; then
+if [ -f .dogfood-answers.yml ] && [ -d template ]; then
     assert_managed_hook_script "$template_bot_post_create"
 fi
 
