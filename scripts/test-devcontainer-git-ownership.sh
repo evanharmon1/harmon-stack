@@ -98,11 +98,13 @@ repo="$fixture/workspaces/example"
 unrelated="$fixture/unrelated"
 home="$fixture/home"
 xdg="$fixture/xdg"
+exact_xdg="$fixture/exact-xdg"
+no_safe_xdg="$fixture/no-safe-xdg"
 host_home="$fixture/host-home"
 host_xdg="$fixture/host-xdg"
 fake_bin="$fixture/bin"
 log="$fixture/sudo.log"
-mkdir -p "$repo/subdirectory" "$unrelated" "$home" "$xdg/git" "$host_home" "$host_xdg/git" "$fake_bin"
+mkdir -p "$repo/subdirectory" "$unrelated" "$home" "$xdg/git" "$exact_xdg/git" "$no_safe_xdg/git" "$host_home" "$host_xdg/git" "$fake_bin"
 repo="$(cd "$repo" && pwd -P)"
 unrelated="$(cd "$unrelated" && pwd -P)"
 
@@ -193,6 +195,21 @@ safe_entries="$(HOME="$home" XDG_CONFIG_HOME="$xdg" git config --file "$xdg/git/
 actual_root="$(GIT_CONFIG_NOSYSTEM=1 HOME="$home" XDG_CONFIG_HOME="$xdg" git -C "$repo" rev-parse --path-format=absolute --show-toplevel)"
 [ "$actual_root" = "$repo" ] ||
     fail "Git did not inspect the exact safe workspace: $actual_root"
+
+echo "==> exact safe.directory is effective without a wildcard"
+run_reconcile_at "$repo" "$exact_xdg/git/config" "$fixture/exact-sudo.log" >/dev/null
+safe_entries="$(HOME="$home" XDG_CONFIG_HOME="$exact_xdg" git config --file "$exact_xdg/git/config" --get-all safe.directory)"
+[ "$(printf '%s\n' "$safe_entries" | grep -Fxc "$repo")" -eq 1 ] ||
+    fail "the exact-only safe.directory entry is missing or duplicated: $safe_entries"
+[ "$(printf '%s\n' "$safe_entries" | grep -Fxc '*')" -eq 0 ] ||
+    fail "the exact-only safe.directory config unexpectedly contains a wildcard"
+if GIT_CONFIG_NOSYSTEM=1 GIT_TEST_ASSUME_DIFFERENT_OWNER=1 HOME="$home" XDG_CONFIG_HOME="$no_safe_xdg" git -C "$repo" rev-parse --show-toplevel >/dev/null 2>&1; then
+    fail "Git accepted the ownership-mismatched fixture without safe.directory"
+fi
+actual_root="$(GIT_CONFIG_NOSYSTEM=1 GIT_TEST_ASSUME_DIFFERENT_OWNER=1 HOME="$home" XDG_CONFIG_HOME="$exact_xdg" git -C "$repo" rev-parse --path-format=absolute --show-toplevel)" ||
+    fail "Git rejected the exact safe.directory entry for the ownership-mismatched fixture"
+[ "$actual_root" = "$repo" ] ||
+    fail "Git did not inspect the exact-only safe workspace: $actual_root"
 
 echo "==> repeated permissions reconciliation is idempotent"
 : >"$log"
