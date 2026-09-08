@@ -31,13 +31,14 @@ PROFILE_SOURCE_LINE='source /usr/local/share/devcontainer-config/shell-aliases.s
 ENV_GITCONFIG="${XDG_CONFIG_HOME:-$HOME/.config}/git/config"
 mkdir -p "$(dirname "$ENV_GITCONFIG")"
 
-# --- Workspace ownership reconciliation ---
+# --- Workspace permissions reconciliation ---
 # Git 2.35+ refuses to inspect a bind-mounted repository when the host checkout
 # owner differs from the in-container user. Resolve the mounted workspace from
-# its .git marker without asking Git first, then add that exact canonical path
-# to the environment config before any later command can inspect or write the
-# repository. A wildcard safe.directory would hide the mismatch while
-# allowing unrelated repositories to be trusted, so it is never used here.
+# its .git marker without asking Git first, grant the Git metadata tree the
+# permissions needed by this container, then add only that exact path to the
+# environment config. Changing permissions preserves the host runner's UID/GID;
+# a wildcard safe.directory would trust unrelated repositories, so it is never
+# used here.
 resolve_workspace_root() {
     local candidate="$1"
     while [ "$candidate" != "/" ]; do
@@ -50,58 +51,9 @@ resolve_workspace_root() {
     return 1
 }
 
-workspace_venv_is_mount() {
-    local workspace_root="$1"
-
-    [ -d "$workspace_root/.venv" ] || return 1
-    command -v mountpoint >/dev/null 2>&1 || return 1
-    mountpoint -q "$workspace_root/.venv"
-}
-
-reject_unexpected_workspace_mounts() {
-    local workspace_root="$1"
-    local mountinfo="${2:-/proc/self/mountinfo}"
-    local allow_venv_mount="${3:-0}"
-    local mount_path mount_paths
-
-    [ -r "$mountinfo" ] || {
-        echo "ERROR: workspace mount metadata is unavailable: ${mountinfo}" >&2
-        return 1
-    }
-    mount_paths="$(awk -v root="$workspace_root" '
-        {
-            mount_path = $5
-            gsub(/\\040/, " ", mount_path)
-            gsub(/\\011/, "\t", mount_path)
-            gsub(/\\134/, "\\", mount_path)
-            if (index(mount_path, root "/") == 1) {
-                print mount_path
-            }
-        }
-    ' "$mountinfo")" || return 1
-    while IFS= read -r mount_path; do
-        case "$mount_path" in
-        "$workspace_root")
-            ;;
-        "$workspace_root/.venv" | "$workspace_root/.venv"/*)
-            if [ "$allow_venv_mount" -ne 1 ]; then
-                echo "ERROR: refusing to reconcile an unexpected nested mount inside the workspace: ${mount_path}" >&2
-                return 1
-            fi
-            ;;
-        "$workspace_root"/*)
-            echo "ERROR: refusing to reconcile an unexpected nested mount inside the workspace: ${mount_path}" >&2
-            return 1
-            ;;
-        esac
-    done <<EOF
-$mount_paths
-EOF
-}
-
-reconcile_workspace_ownership() {
+reconcile_workspace_permissions() {
     local env_gitconfig="$1"
-    local workspace_root canonical_workspace_root git_dir default_hooks_dir hooks_dir container_user venv_is_mount
+    local workspace_root
 
     workspace_root="$(resolve_workspace_root "$(pwd -P)")" || {
         echo "ERROR: could not resolve the repository/workspace root from $(pwd -P)" >&2
@@ -112,174 +64,33 @@ reconcile_workspace_ownership() {
         return 1
     }
 
+    # Keep the host checkout's UID/GID intact. Git and Lefthook write under
+    # .git, so make only that repository metadata tree readable, writable, and
+    # traversable for the container user. Capital X adds execute permission to
+    # directories and files that were already executable, not every file.
+    sudo chmod -R a+rwX "$workspace_root/.git" || {
+        echo "ERROR: could not grant Git metadata permissions at $workspace_root/.git" >&2
+        return 1
+    }
+
     # This read is deliberately an exact-line match. An existing wildcard (or
-    # another repository path) does not satisfy the workspace's own entry.
+    # another repository path) does not satisfy the workspace's own entry. It
+    # is written only after the permission repair succeeds, so a failed
+    # lifecycle never leaves a trusted-but-unusable checkout.
     if ! git config --file "$env_gitconfig" --get-all safe.directory 2>/dev/null |
         grep -Fqx "$workspace_root"; then
         git config --file "$env_gitconfig" --add safe.directory "$workspace_root" || return 1
     fi
 
-    container_user="$(id -un)" || return 1
-    # Let root perform this read-only boundary check: a mismatched checkout can
-    # have a private .git directory whose owner prevents the container user
-    # from canonicalizing it. The exact -c entry keeps this probe scoped to the
-    # discovered workspace. Generated Python projects mount .venv as a
-    # container-private volume; prune that path only when it is actually
-    # mounted, so an ordinary in-workspace .venv is reconciled.
-    canonical_workspace_root="$(sudo git -C "$workspace_root" \
-        -c "safe.directory=$workspace_root" \
-        rev-parse --path-format=absolute --show-toplevel)" || {
-        echo "ERROR: Git could not resolve the repository/workspace root at ${workspace_root}" >&2
-        return 1
-    }
-    canonical_workspace_root="$(cd "$canonical_workspace_root" && pwd -P)" || {
-        echo "ERROR: Git reported an unusable repository/workspace root: ${canonical_workspace_root}" >&2
-        return 1
-    }
-    [ "$canonical_workspace_root" = "$workspace_root" ] || {
-        echo "ERROR: Git resolved a repository/workspace root outside the discovered workspace: ${canonical_workspace_root}" >&2
-        return 1
-    }
-    venv_is_mount=0
-    if workspace_venv_is_mount "$workspace_root"; then
-        venv_is_mount=1
-    fi
-    case "$(uname -s)" in
-    Linux)
-        reject_unexpected_workspace_mounts "$workspace_root" /proc/self/mountinfo "$venv_is_mount" || return 1
-        ;;
-    *)
-        # The production container is Linux. Keep the helper runnable from
-        # macOS bash 3.2 tests, where procfs is not present; if a non-Linux
-        # environment does expose mountinfo, retain the same guard there.
-        if [ -r /proc/self/mountinfo ]; then
-            reject_unexpected_workspace_mounts "$workspace_root" /proc/self/mountinfo "$venv_is_mount" || return 1
-        fi
-        ;;
-    esac
-
-    # Repair ownership before the container user reads repository metadata.
-    # -xdev handles mounts on a different device, while -user avoids issuing
-    # needless chowns on already-reconciled entries. Changing only the owner
-    # preserves host-provided shared groups, and -h ensures an in-workspace
-    # symlink cannot redirect chown to an external target.
-    if [ "$venv_is_mount" -eq 1 ]; then
-        sudo find "$workspace_root" -xdev \
-            -path "$workspace_root/.venv" -prune -o \
-            ! -user "$container_user" -exec chown -h "$container_user" {} + || return 1
-    else
-        sudo find "$workspace_root" -xdev \
-            ! -user "$container_user" -exec chown -h "$container_user" {} + || return 1
-    fi
-
-    git_dir="$(git -C "$workspace_root" rev-parse --path-format=absolute --absolute-git-dir)" || {
-        echo "ERROR: Git could not resolve the Git directory for ${workspace_root}" >&2
-        return 1
-    }
-    default_hooks_dir="${git_dir%/}/hooks"
-    case "$default_hooks_dir" in
-    "$workspace_root"/*) ;;
-    *)
-        echo "ERROR: refusing to reconcile a default hooks directory outside the workspace: ${default_hooks_dir}" >&2
-        return 1
-        ;;
-    esac
-
-    # post-create.sh copies the repository's managed hooks to .git/hooks even
-    # when Git's effective core.hooksPath is a user-managed path elsewhere.
-    # Create and repair that default directory without following symlinks.
-    if [ ! -L "$default_hooks_dir" ]; then
-        ensure_workspace_directory "$workspace_root" "$default_hooks_dir" "$container_user" || return 1
-    fi
-
-    hooks_dir="$(git -C "$workspace_root" rev-parse --path-format=absolute --git-path hooks)" || {
-        echo "ERROR: Git could not resolve the effective hooks directory for ${workspace_root}" >&2
-        return 1
-    }
-    case "$hooks_dir" in
-    "$workspace_root"/*)
-        if [ "$hooks_dir" != "$default_hooks_dir" ]; then
-            ensure_workspace_directory "$workspace_root" "$hooks_dir" "$container_user" || return 1
-        fi
-        ;;
-    *)
-        # A user-level core.hooksPath is intentionally not ours to chown. The
-        # managed hooks cannot be installed there without mutating an
-        # unrelated path, so fail the lifecycle rather than claiming hooks are
-        # ready when Git will resolve a different directory.
-        echo "ERROR: refusing to continue with a Git hooks path outside the workspace: ${hooks_dir}" >&2
-        return 1
-        ;;
-    esac
-
     RECONCILED_WORKSPACE_ROOT="$workspace_root"
 }
 
-ensure_workspace_directory() {
-    local workspace_root="$1"
-    local directory="$2"
-    local container_user="$3"
-    local current="$directory"
-
-    case "$directory" in
-    "$workspace_root"/*) ;;
-    *)
-        echo "ERROR: refusing to create a directory outside the workspace: ${directory}" >&2
-        return 1
-        ;;
-    esac
-    while [ "$current" != "$workspace_root" ]; do
-        [ ! -L "$current" ] || {
-            echo "ERROR: refusing to reconcile a symlinked workspace directory: ${current}" >&2
-            return 1
-        }
-        if [ ! -d "$current" ]; then
-            sudo mkdir -p "$current" || return 1
-        fi
-        sudo chown "$container_user" "$current" || return 1
-        sudo chmod u+rwx "$current" || return 1
-        current="$(dirname "$current")"
-    done
-}
-
-install_lefthook_hooks() {
-    local workspace_root="$1"
-    local git_dir default_hooks_dir hooks_dir
-
-    git_dir="$(git -C "$workspace_root" rev-parse --path-format=absolute --absolute-git-dir)" || {
-        echo "ERROR: Git could not resolve the Git directory for Lefthook in ${workspace_root}" >&2
-        return 1
-    }
-    default_hooks_dir="${git_dir%/}/hooks"
-    hooks_dir="$(git -C "$workspace_root" rev-parse --path-format=absolute --git-path hooks)" || {
-        echo "ERROR: Git could not resolve the effective hooks directory for Lefthook in ${workspace_root}" >&2
-        return 1
-    }
-
-    case "$hooks_dir" in
-    "$workspace_root"/*)
-        if [ "$hooks_dir" = "$default_hooks_dir" ]; then
-            lefthook install
-        else
-            # Lefthook rejects a custom core.hooksPath unless --force is used.
-            # Force only an effective path inside the reconciled workspace; an
-            # external path is user-managed and must not receive our writes.
-            lefthook install --force
-        fi
-        ;;
-    *)
-        echo "ERROR: refusing to install Lefthook outside the workspace: ${hooks_dir}" >&2
-        return 1
-        ;;
-    esac
-}
-
-# --- End workspace ownership reconciliation ---
+# --- End workspace permissions reconciliation ---
 RECONCILED_WORKSPACE_ROOT=""
-reconcile_workspace_ownership "$ENV_GITCONFIG"
+reconcile_workspace_permissions "$ENV_GITCONFIG"
 WORKSPACE_ROOT="$RECONCILED_WORKSPACE_ROOT"
 cd "$WORKSPACE_ROOT"
-echo "==> Workspace ownership reconciled for $(id -un):$(id -gn): ${WORKSPACE_ROOT}"
+echo "==> Workspace permissions prepared for $(id -un):$(id -gn): $WORKSPACE_ROOT"
 
 # Git identity for commits. Written to the environment layer, so in a bot or
 # headless container DEVCONTAINER_GIT_* is the identity. When a human attaches
@@ -566,7 +377,7 @@ fi
 
 if [ -f lefthook.yml ] && command -v lefthook &>/dev/null; then
     echo "==> Setting up git hooks via lefthook..."
-    install_lefthook_hooks "$WORKSPACE_ROOT"
+    lefthook install
 fi
 
 echo "==> Wiring up shell aliases/functions source line..."
