@@ -2400,6 +2400,44 @@ if [ -d .devcontainer ]; then
     python3 - "$dc_workflow" "$repo_root/$dc_workflow" <<'PY' || err "the devcontainer workflow violates its required structural invariants (see stderr)"
 import sys, pathlib, re
 
+cleanup_step = "      - name: Free up runner disk space"
+assertion_step = "      - name: Assert bot-autonomy fail-closed policy in a running bot container"
+cleanup_fields = (
+    ("GitHub-hosted runner condition", "        if: runner.environment == 'github-hosted'"),
+    ("run block", "        run: |"),
+    ("established SDK cleanup", "          sudo rm -rf /usr/local/lib/android /usr/share/dotnet /opt/ghc /usr/share/swift"),
+    ("established image prune", "          sudo docker image prune --all --force || true"),
+    ("post-cleanup disk report", "          df -h /"),
+)
+
+
+def active_line(text, line):
+    """Match one active YAML line at its required indentation."""
+    return re.search(rf"^{re.escape(line)}$", text, re.M)
+
+
+def cleanup_guard_problems(assert_job, prefix):
+    """Validate the active cleanup step and its ordering within the assertion job."""
+    found = []
+    cleanup = active_line(assert_job, cleanup_step)
+    assertion = active_line(assert_job, assertion_step)
+    if not cleanup:
+        found.append(prefix + "devcontainer-assert-bot does not reclaim runner disk before its possible rebuild")
+    if not assertion:
+        found.append(prefix + "devcontainer-assert-bot has no running-container assertion step")
+    if not cleanup or not assertion:
+        return found
+    if cleanup.start() >= assertion.start():
+        found.append(prefix + "devcontainer-assert-bot reclaims disk after the assertion rebuild starts")
+        return found
+
+    cleanup_block = assert_job[cleanup.start():assertion.start()]
+    for label, line in cleanup_fields:
+        if not active_line(cleanup_block, line):
+            found.append(prefix + f"devcontainer-assert-bot disk reclamation has no active, correctly indented {label}")
+    return found
+
+
 problems = []
 for workflow in map(pathlib.Path, sys.argv[1:]):
     text = workflow.read_text()
@@ -2427,22 +2465,19 @@ for workflow in map(pathlib.Path, sys.argv[1:]):
     if not assert_job:
         problems.append(prefix + "has no devcontainer-assert-bot job")
         continue
-    cleanup = assert_job.find("      - name: Free up runner disk space")
-    assertion = assert_job.find("      - name: Assert bot-autonomy fail-closed policy")
-    if cleanup < 0:
-        problems.append(prefix + "devcontainer-assert-bot does not reclaim runner disk before its possible rebuild")
-    else:
-        cleanup_block = assert_job[cleanup:assertion if assertion >= 0 else None]
-        if "if: runner.environment == 'github-hosted'" not in cleanup_block:
-            problems.append(prefix + "devcontainer-assert-bot disk reclamation is not restricted to GitHub-hosted runners")
-        if "sudo rm -rf /usr/local/lib/android /usr/share/dotnet /opt/ghc /usr/share/swift" not in cleanup_block:
-            problems.append(prefix + "devcontainer-assert-bot disk reclamation omits the established SDK cleanup")
-        if "sudo docker image prune --all --force || true" not in cleanup_block:
-            problems.append(prefix + "devcontainer-assert-bot disk reclamation omits the established image prune")
-    if assertion < 0:
-        problems.append(prefix + "devcontainer-assert-bot has no running-container assertion step")
-    elif cleanup >= assertion:
-        problems.append(prefix + "devcontainer-assert-bot reclaims disk after the assertion rebuild starts")
+    workflow_cleanup_problems = cleanup_guard_problems(assert_job, prefix)
+    problems.extend(workflow_cleanup_problems)
+    if not workflow_cleanup_problems:
+        cleanup = active_line(assert_job, cleanup_step)
+        assertion = active_line(assert_job, assertion_step)
+        commented_block = re.sub(
+            r"(?m)^(?=.)",
+            "# ",
+            assert_job[cleanup.start():assertion.start()],
+        )
+        commented_job = assert_job[:cleanup.start()] + commented_block + assert_job[assertion.start():]
+        if not cleanup_guard_problems(commented_job, prefix):
+            problems.append(prefix + "commented-out cleanup fixture incorrectly satisfies the structural guard")
 for problem in problems:
     print(f"  {problem}", file=sys.stderr)
 sys.exit(1 if problems else 0)
