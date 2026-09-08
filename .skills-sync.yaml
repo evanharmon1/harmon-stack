@@ -12,6 +12,7 @@ source:
 categories:
   - universal
   - repo
+  - matt-pocock
 dest: .claude/skills
 
 # Shared subagents, vendored at the SAME pinned ref as the skills above. A thin
