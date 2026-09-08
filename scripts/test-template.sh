@@ -2397,30 +2397,52 @@ fi
 dc_workflow=".github/workflows/devcontainer-build.yml"
 if [ -d .devcontainer ]; then
     [ -f "$dc_workflow" ] || err "$dc_workflow missing (devcontainer=true)"
-    python3 - "$dc_workflow" <<'PY' || err "the devcontainer workflow would wedge a required devcontainer-verify check (see stderr)"
+    python3 - "$dc_workflow" "$repo_root/$dc_workflow" <<'PY' || err "the devcontainer workflow violates its required structural invariants (see stderr)"
 import sys, pathlib, re
 
-text = pathlib.Path(sys.argv[1]).read_text()
-head = text.split("\njobs:", 1)[0]
 problems = []
-if re.search(r"^\s+paths(-ignore)?:", head, re.M):
-    problems.append("the `on:` block has a paths filter — a required check that never reports blocks the merge")
-for trigger in ("push:", "pull_request:", "merge_group:"):
-    if not re.search(r"^\s+%s" % re.escape(trigger), head, re.M):
-        problems.append(f"the `on:` block is missing the {trigger[:-1]} trigger")
-jobs = re.split(r"^(?=  [A-Za-z0-9_-]+:$)", text, flags=re.M)
-verify_job = next((j for j in jobs if j.startswith("  devcontainer-verify:")), None)
-if not verify_job:
-    problems.append("has no devcontainer-verify aggregate job")
-elif not re.search(r"^\s+if:\s*always\(\)", verify_job, re.M):
-    problems.append("devcontainer-verify has no `if: always()` — it would not report when a leaf job is skipped")
-merge_group_job = next((j for j in jobs if j.startswith("  build-merge-group:")), None)
-if not merge_group_job:
-    problems.append("has no build-merge-group job — merge_group would run the credentialed build job instead")
-elif "packages:" in merge_group_job:
-    problems.append("build-merge-group declares a `packages:` permission — it must hold none at all")
-elif "docker/login-action" in merge_group_job:
-    problems.append("build-merge-group has a docker/login-action step — merge_group must never authenticate")
+for workflow in map(pathlib.Path, sys.argv[1:]):
+    text = workflow.read_text()
+    head = text.split("\njobs:", 1)[0]
+    prefix = f"{workflow}: "
+    if re.search(r"^\s+paths(-ignore)?:", head, re.M):
+        problems.append(prefix + "the `on:` block has a paths filter — a required check that never reports blocks the merge")
+    for trigger in ("push:", "pull_request:", "merge_group:"):
+        if not re.search(r"^\s+%s" % re.escape(trigger), head, re.M):
+            problems.append(prefix + f"the `on:` block is missing the {trigger[:-1]} trigger")
+    jobs = re.split(r"^(?=  [A-Za-z0-9_-]+:$)", text, flags=re.M)
+    verify_job = next((j for j in jobs if j.startswith("  devcontainer-verify:")), None)
+    if not verify_job:
+        problems.append(prefix + "has no devcontainer-verify aggregate job")
+    elif not re.search(r"^\s+if:\s*always\(\)", verify_job, re.M):
+        problems.append(prefix + "devcontainer-verify has no `if: always()` — it would not report when a leaf job is skipped")
+    merge_group_job = next((j for j in jobs if j.startswith("  build-merge-group:")), None)
+    if not merge_group_job:
+        problems.append(prefix + "has no build-merge-group job — merge_group would run the credentialed build job instead")
+    elif "packages:" in merge_group_job:
+        problems.append(prefix + "build-merge-group declares a `packages:` permission — it must hold none at all")
+    elif "docker/login-action" in merge_group_job:
+        problems.append(prefix + "build-merge-group has a docker/login-action step — merge_group must never authenticate")
+    assert_job = next((j for j in jobs if j.startswith("  devcontainer-assert-bot:")), None)
+    if not assert_job:
+        problems.append(prefix + "has no devcontainer-assert-bot job")
+        continue
+    cleanup = assert_job.find("      - name: Free up runner disk space")
+    assertion = assert_job.find("      - name: Assert bot-autonomy fail-closed policy")
+    if cleanup < 0:
+        problems.append(prefix + "devcontainer-assert-bot does not reclaim runner disk before its possible rebuild")
+    else:
+        cleanup_block = assert_job[cleanup:assertion if assertion >= 0 else None]
+        if "if: runner.environment == 'github-hosted'" not in cleanup_block:
+            problems.append(prefix + "devcontainer-assert-bot disk reclamation is not restricted to GitHub-hosted runners")
+        if "sudo rm -rf /usr/local/lib/android /usr/share/dotnet /opt/ghc /usr/share/swift" not in cleanup_block:
+            problems.append(prefix + "devcontainer-assert-bot disk reclamation omits the established SDK cleanup")
+        if "sudo docker image prune --all --force || true" not in cleanup_block:
+            problems.append(prefix + "devcontainer-assert-bot disk reclamation omits the established image prune")
+    if assertion < 0:
+        problems.append(prefix + "devcontainer-assert-bot has no running-container assertion step")
+    elif cleanup >= assertion:
+        problems.append(prefix + "devcontainer-assert-bot reclaims disk after the assertion rebuild starts")
 for problem in problems:
     print(f"  {problem}", file=sys.stderr)
 sys.exit(1 if problems else 0)
