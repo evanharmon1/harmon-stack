@@ -380,6 +380,7 @@ tasks:
     desc: Unit-assert devcontainer permission invariants (no container needed)
     cmds:
       - ./scripts/devcontainer-assert.sh unit
+      - ./scripts/test-devcontainer-git-ownership.sh
 
   test:statusline:
     desc: Unit-test the devcontainer status line renderer (no container needed)

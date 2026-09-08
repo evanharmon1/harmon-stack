@@ -31,6 +31,93 @@ PROFILE_SOURCE_LINE='source /usr/local/share/devcontainer-config/shell-aliases.s
 ENV_GITCONFIG="${XDG_CONFIG_HOME:-$HOME/.config}/git/config"
 mkdir -p "$(dirname "$ENV_GITCONFIG")"
 
+# --- Workspace ownership reconciliation ---
+# Git 2.35+ refuses to inspect a bind-mounted repository when the host checkout
+# owner differs from the in-container user. Resolve the mounted workspace from
+# its .git marker without asking Git first, then add that exact canonical path
+# to the environment config before any later command can inspect or write the
+# repository. A wildcard safe.directory would hide the mismatch while
+# allowing unrelated repositories to be trusted, so it is never used here.
+resolve_workspace_root() {
+    local candidate="$1"
+    while [ "$candidate" != "/" ]; do
+        if [ -e "$candidate/.git" ]; then
+            printf '%s\n' "$candidate"
+            return 0
+        fi
+        candidate="$(dirname "$candidate")"
+    done
+    return 1
+}
+
+reconcile_workspace_ownership() {
+    local env_gitconfig="$1"
+    local workspace_root hooks_dir owner
+
+    workspace_root="$(resolve_workspace_root "$(pwd -P)")" || {
+        echo "ERROR: could not resolve the repository/workspace root from $(pwd -P)" >&2
+        return 1
+    }
+    [ "$workspace_root" != "/" ] || {
+        echo "ERROR: refusing to reconcile the filesystem root as a workspace" >&2
+        return 1
+    }
+
+    # This read is deliberately an exact-line match. An existing wildcard (or
+    # another repository path) does not satisfy the workspace's own entry.
+    if ! git config --file "$env_gitconfig" --get-all safe.directory 2>/dev/null |
+        grep -Fqx "$workspace_root"; then
+        git config --file "$env_gitconfig" --add safe.directory "$workspace_root"
+    fi
+
+    # Now that the marker path is trusted, let Git canonicalize the repository
+    # root and resolve the hooks path lefthook will write. Keep the canonical
+    # root in safe.directory too in case the working directory contained a
+    # symlink before `pwd -P` resolved it.
+    workspace_root="$(git -C "$workspace_root" rev-parse --path-format=absolute --show-toplevel)" || {
+        echo "ERROR: Git could not resolve the repository/workspace root at ${workspace_root}" >&2
+        return 1
+    }
+    if ! git config --file "$env_gitconfig" --get-all safe.directory 2>/dev/null |
+        grep -Fqx "$workspace_root"; then
+        git config --file "$env_gitconfig" --add safe.directory "$workspace_root"
+    fi
+
+    hooks_dir="$(git -C "$workspace_root" rev-parse --path-format=absolute --git-path hooks)" || {
+        echo "ERROR: Git could not resolve the hooks directory for ${workspace_root}" >&2
+        return 1
+    }
+    case "$hooks_dir" in
+    "$workspace_root"/*) ;;
+    *)
+        echo "ERROR: refusing to reconcile a hooks directory outside the workspace: ${hooks_dir}" >&2
+        return 1
+        ;;
+    esac
+    [ ! -L "$hooks_dir" ] || {
+        echo "ERROR: refusing to reconcile a symlinked hooks directory: ${hooks_dir}" >&2
+        return 1
+    }
+
+    owner="$(id -un):$(id -gn)"
+    sudo chown -R "$owner" "$workspace_root"
+    if [ ! -d "$hooks_dir" ]; then
+        sudo mkdir -p "$hooks_dir"
+    fi
+    # Keep this explicit even though the normal .git/hooks path is covered by
+    # the workspace chown: lefthook must be able to install hooks, and a custom
+    # in-workspace core.hooksPath must receive the same guarantee.
+    sudo chown -R "$owner" "$hooks_dir"
+    sudo chmod u+rwx "$hooks_dir"
+
+    printf '%s\n' "$workspace_root"
+}
+
+# --- End workspace ownership reconciliation ---
+WORKSPACE_ROOT="$(reconcile_workspace_ownership "$ENV_GITCONFIG")"
+cd "$WORKSPACE_ROOT"
+echo "==> Workspace ownership reconciled for $(id -un):$(id -gn): ${WORKSPACE_ROOT}"
+
 # Git identity for commits. Written to the environment layer, so in a bot or
 # headless container DEVCONTAINER_GIT_* is the identity. When a human attaches
 # via VS Code and copyGitConfig brings their personal ~/.gitconfig in, its
