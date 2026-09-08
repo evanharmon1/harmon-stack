@@ -191,6 +191,7 @@ skill_categories:
     backend: backend
     frontend: frontend
     infra: infra
+    matt-pocock: matt-pocock
     mobile: mobile
     repo: repo
   # Seed the selection from the project type; the user can toggle any category.

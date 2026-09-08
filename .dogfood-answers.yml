@@ -38,6 +38,7 @@ use_shared_agents: true
 skill_categories:
   - universal
   - repo
+  - matt-pocock
 
 use_foreman: true
 foreman_additional_trusted_actors: AdmiralFraggle
