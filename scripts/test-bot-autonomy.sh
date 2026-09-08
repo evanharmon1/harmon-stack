@@ -1362,4 +1362,81 @@ fi
 [ "$(cat "${agy22_home}/.local/bin/agy")" = "$agy22_before" ] ||
     fail "a settings-apply failure modified the prior valid wrapper's content before aborting"
 
+echo "==> 23. apply-antigravity-settings.sh: managed top-level keys replace nested values atomically"
+agy23_home="${work_dir}/agy23-atomic-settings-home"
+agy23_settings="${agy23_home}/.gemini/antigravity-cli/settings.json"
+agy23_apply="${repo_root}/.devcontainer/config/apply-antigravity-settings.sh"
+agy23_defaults="${repo_root}/.devcontainer/config/antigravity-settings.json"
+agy23_workspace="${work_dir}/agy23-workspace"
+mkdir -p "$(dirname "$agy23_settings")"
+printf '%s\n' '{"model":"keep","permissions":{"bash":"deny","nested":{"stale":true}},"statusLine":{"command":"stale","nested":{"stale":true}},"unmanaged":{"nested":{"keep":true}}}' >"$agy23_settings"
+HOME="$agy23_home" bash "$agy23_apply" apply "$agy23_defaults" "$agy23_workspace" >/dev/null
+jq -e '
+    .model == "keep" and
+    .permissions == {} and
+    .statusLine == {
+        "type": "command",
+        "command": "/etc/claude-code/statusline.sh",
+        "enabled": true,
+        "stack_with_default": true
+    } and
+    .unmanaged == {"nested":{"keep":true}}
+' "$agy23_settings" >/dev/null ||
+    fail "managed Antigravity settings retained stale nested values or changed an unmanaged key"
+HOME="$agy23_home" bash "$agy23_apply" restore >/dev/null
+jq -e '
+    .permissions == {"bash":"deny","nested":{"stale":true}} and
+    .statusLine == {"command":"stale","nested":{"stale":true}} and
+    .unmanaged == {"nested":{"keep":true}}
+' "$agy23_settings" >/dev/null ||
+    fail "restoring Antigravity settings did not recover the original nested managed values"
+
+echo "==> 24. ensure-antigravity-cli.sh: disabled cleanup removes only owned launcher pairs"
+# The compatibility installer creates this exact absolute symlink shape.
+agy24_link_home="${work_dir}/agy24-managed-link-home"
+mkdir -p "${agy24_link_home}/.local/bin"
+printf 'managed compatibility binary\n' >"${agy24_link_home}/.local/bin/agy-real"
+ln -s "${agy24_link_home}/.local/bin/agy-real" "${agy24_link_home}/.local/bin/agy"
+HOME="$agy24_link_home" HARMON_BOT_AUTONOMY_ANTIGRAVITY=disabled bash "$ensure_script" >/dev/null
+[ ! -e "${agy24_link_home}/.local/bin/agy-real" ] &&
+    [ ! -e "${agy24_link_home}/.local/bin/agy" ] &&
+    [ ! -L "${agy24_link_home}/.local/bin/agy" ] ||
+    fail "disabled cleanup did not remove an owned agy -> agy-real launcher pair"
+
+# The bot-autonomy module's marker proves ownership of its regular wrapper.
+agy24_wrapper_home="${work_dir}/agy24-managed-wrapper-home"
+mkdir -p "${agy24_wrapper_home}/.local/bin"
+printf '#!/bin/sh\necho REAL\n' >"${agy24_wrapper_home}/.local/bin/agy-real"
+chmod +x "${agy24_wrapper_home}/.local/bin/agy-real"
+HOME="$agy24_wrapper_home" HARMON_BOT_AUTONOMY_ANTIGRAVITY=enabled \
+    BOT_AUTONOMY_ANTIGRAVITY_SETTINGS="${agy24_wrapper_home}/.gemini/antigravity-cli/settings.json" \
+    bash "$agy_module" apply >/dev/null
+HOME="$agy24_wrapper_home" HARMON_BOT_AUTONOMY_ANTIGRAVITY=disabled bash "$ensure_script" >/dev/null
+[ ! -e "${agy24_wrapper_home}/.local/bin/agy-real" ] &&
+    [ ! -e "${agy24_wrapper_home}/.local/bin/agy" ] ||
+    fail "disabled cleanup did not remove a marker-owned Antigravity wrapper pair"
+
+# Independent regular files at both reserved names carry no ownership proof.
+agy24_file_home="${work_dir}/agy24-independent-files-home"
+mkdir -p "${agy24_file_home}/.local/bin"
+printf 'independent real\n' >"${agy24_file_home}/.local/bin/agy-real"
+printf 'independent launcher\n' >"${agy24_file_home}/.local/bin/agy"
+HOME="$agy24_file_home" HARMON_BOT_AUTONOMY_ANTIGRAVITY=disabled bash "$ensure_script" >/dev/null
+[ "$(cat "${agy24_file_home}/.local/bin/agy-real")" = "independent real" ] &&
+    [ "$(cat "${agy24_file_home}/.local/bin/agy")" = "independent launcher" ] ||
+    fail "disabled cleanup modified independent regular files"
+
+# An independent symlink and an orphan agy-real are likewise not evidence that
+# this module owns either path.
+agy24_symlink_home="${work_dir}/agy24-independent-symlink-home"
+mkdir -p "${agy24_symlink_home}/.local/bin"
+printf 'independent real\n' >"${agy24_symlink_home}/.local/bin/agy-real"
+printf 'independent target\n' >"${agy24_symlink_home}/.local/bin/other-agy"
+ln -s "${agy24_symlink_home}/.local/bin/other-agy" "${agy24_symlink_home}/.local/bin/agy"
+HOME="$agy24_symlink_home" HARMON_BOT_AUTONOMY_ANTIGRAVITY=disabled bash "$ensure_script" >/dev/null
+[ -f "${agy24_symlink_home}/.local/bin/agy-real" ] &&
+    [ -L "${agy24_symlink_home}/.local/bin/agy" ] &&
+    [ "$(readlink "${agy24_symlink_home}/.local/bin/agy")" = "${agy24_symlink_home}/.local/bin/other-agy" ] ||
+    fail "disabled cleanup modified an independent symlink or agy-real file"
+
 echo "All bot-autonomy unit tests passed."

@@ -618,13 +618,13 @@ SENTINEL_SCRIPT
     printf '%s\n' '#!/bin/sh' 'printf "%s\\n" "1.0.0"' >"${agy_roll_home}/.local/bin/agy-real"
     chmod 0755 "$agy_system_binary" "${agy_roll_home}/.local/bin/agy-real"
 
-    # Disabled marker (including entirely absent): no download; agy-real and
-    # agy are removed even if a prior enabled run (or a stale image) left them.
+    # Disabled marker (including entirely absent): no download; a launcher
+    # symlink to agy-real proves that the pair is module-owned and removable.
     local agy_disabled_home
     agy_disabled_home="${work_dir}/agy-disabled-home"
     mkdir -p "${agy_disabled_home}/.local/bin"
     : >"${agy_disabled_home}/.local/bin/agy-real"
-    : >"${agy_disabled_home}/.local/bin/agy"
+    ln -s "${agy_disabled_home}/.local/bin/agy-real" "${agy_disabled_home}/.local/bin/agy"
     HOME="$agy_disabled_home" bash "$agy_ensure" >/dev/null
     [ ! -e "${agy_disabled_home}/.local/bin/agy-real" ] ||
         fail "ensure-antigravity-cli.sh left agy-real behind with the marker disabled"
@@ -665,11 +665,11 @@ SENTINEL_SCRIPT
     agy_workspace="${work_dir}/trusted-workspace"
     agy_workspace_moved="${work_dir}/trusted-workspace-renamed"
     mkdir -p "$(dirname "$agy_settings")"
-    printf '%s\n' '{"model":"Gemini test","toolPermission":"request-review","permissions":{"allow":["command(task)"]}}' >"$agy_settings"
+    printf '%s\n' '{"model":"Gemini test","toolPermission":"request-review","permissions":{"allow":["command(task)"],"bash":"deny"}}' >"$agy_settings"
     HOME="$agy_home" bash "$agy_apply" apply "$agy_defaults" "$agy_workspace" >/dev/null
     jq -e '
         .model == "Gemini test" and
-        .permissions.allow == ["command(task)"] and
+        .permissions == {} and
         .toolPermission == "always-proceed" and
         .artifactReviewPolicy == "always-proceed" and
         .allowNonWorkspaceAccess == true and
@@ -686,7 +686,7 @@ SENTINEL_SCRIPT
         .schemaVersion == 6 and
         .present == ["toolPermission","permissions"] and
         .values.toolPermission == "request-review" and
-        .values.permissions == {"allow":["command(task)"]} and
+        .values.permissions == {"allow":["command(task)"],"bash":"deny"} and
         .introducedWorkspaces == [$workspace] and
         .trustedWorkspacesKeyWasPresent == false
     ' --arg workspace "$agy_workspace" "$agy_backup" >/dev/null ||

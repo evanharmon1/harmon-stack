@@ -9,17 +9,27 @@ build="4956531888881664"
 install_dir="$HOME/.local/bin"
 real_bin="${install_dir}/agy-real"
 link_bin="${install_dir}/agy"
+wrapper_marker="# bot-autonomy: Antigravity autonomy wrapper. Installed by"
 
 # HARMON_BOT_AUTONOMY_ANTIGRAVITY is the rendered containerEnv marker (bot
 # and dev devcontainer.json twins, from the use_antigravity_cli Copier
 # answer) — the only channel this verbatim, template-twinned script may read
 # to learn that per-repo answer. Anything other than "enabled" (including
 # absent, on an image built before this marker existed) means: no download,
-# and remove agy-real/agy if either survives from a prior enabled run or a
-# stale image, so a default-off render reaches plain absence, never a
-# symlink with nothing to point at.
+# and remove agy-real/agy only when agy's link target or wrapper marker proves
+# they came from this module. Independent files and symlinks at either path
+# belong to the user and survive a disabled run.
 if [ "${HARMON_BOT_AUTONOMY_ANTIGRAVITY:-}" != "enabled" ]; then
-    rm -f "$real_bin" "$link_bin"
+    launcher_owned=false
+    if [ -L "$link_bin" ] && [ "$(readlink "$link_bin")" = "$real_bin" ]; then
+        launcher_owned=true
+    elif [ -f "$link_bin" ] && [ ! -L "$link_bin" ] && grep -Fq "$wrapper_marker" "$link_bin"; then
+        launcher_owned=true
+    fi
+
+    if [ "$launcher_owned" = true ]; then
+        rm -f "$real_bin" "$link_bin"
+    fi
     exit 0
 fi
 
