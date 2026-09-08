@@ -35,10 +35,16 @@ grep -q '^reconcile_workspace_ownership()' "$helpers" ||
 # The reconciliation must happen before the first explicit repository write.
 reconcile_line="$(grep -n '^WORKSPACE_ROOT="' "$post_create" | head -1 | cut -d: -f1)"
 lefthook_line="$(grep -n '^    lefthook install$' "$post_create" | head -1 | cut -d: -f1)"
+ownership_find_line="$(grep -n '^        sudo find' "$post_create" | head -1 | cut -d: -f1)"
+canonical_line="$(grep -n '^    canonical_workspace_root=.*sudo git' "$post_create" | head -1 | cut -d: -f1)"
 [ -n "$reconcile_line" ] && [ -n "$lefthook_line" ] ||
     fail "could not locate reconciliation or lefthook install in $post_create"
 [ "$reconcile_line" -lt "$lefthook_line" ] ||
     fail "workspace reconciliation occurs after lefthook install"
+[ -n "$ownership_find_line" ] && [ -n "$canonical_line" ] ||
+    fail "could not locate ownership repair or Git canonicalization in $post_create"
+[ "$canonical_line" -lt "$ownership_find_line" ] ||
+    fail "Git boundary validation occurs after ownership repair"
 
 fixture="${tmp_root}/fixture"
 repo="${fixture}/workspaces/example"
@@ -52,9 +58,10 @@ repo="$(cd "$repo" && pwd -P)"
 unrelated="$(cd "$unrelated" && pwd -P)"
 
 git -C "$repo" init -q
-mkdir -p "$repo/.git/hooks" "$repo/subdirectory"
+mkdir -p "$repo/.git/hooks" "$repo/.venv" "$repo/subdirectory"
 git -C "$repo" config --file "$xdg/git/config" --add safe.directory '*'
 chmod 0500 "$repo/.git/hooks"
+chmod 0700 "$repo/.git"
 
 # The real post-create script invokes sudo; this fixture records the exact
 # target while allowing chmod to operate on the fixture's own hook directory.
@@ -64,6 +71,9 @@ set -eu
 printf '%s\n' "$*" >>"${SUDO_LOG:?SUDO_LOG is required}"
 case "${1:-}" in
 chown)
+    exit 0
+    ;;
+find)
     exit 0
     ;;
 chmod|mkdir)
@@ -76,6 +86,14 @@ esac
 SUDO
 chmod 0755 "$fake_bin/sudo"
 
+cat >"$fake_bin/mountpoint" <<'MOUNTPOINT'
+#!/bin/sh
+set -eu
+[ "${1:-}" = "-q" ]
+[ "${MOUNTPOINT_MODE:-mounted}" = "mounted" ]
+MOUNTPOINT
+chmod 0755 "$fake_bin/mountpoint"
+
 run_reconcile_at() {
     target_repo="$1"
     target_config="$2"
@@ -83,6 +101,7 @@ run_reconcile_at() {
     (
         cd "$target_repo"
         HOME="$home" XDG_CONFIG_HOME="$xdg" SUDO_LOG="$target_log" \
+            MOUNTPOINT_MODE="${MOUNTPOINT_MODE:-mounted}" \
             PATH="$fake_bin:$PATH" bash -c \
             '. "$1"; reconcile_workspace_ownership "$2"' _ "$helpers" "$target_config"
     )
@@ -96,7 +115,7 @@ resolved="$(run_reconcile)"
 [ "$resolved" = "$repo" ] ||
     fail "resolved workspace root was '$resolved', expected '$repo'"
 container_user="$(id -un)"
-grep -Fqx "find ${repo} -xdev -path ${repo}/.venv -prune -o -exec chown -h ${container_user} {} +" "$log" ||
+grep -Fqx "find ${repo} -xdev -path ${repo}/.venv -prune -o ! -user ${container_user} -exec chown -h ${container_user} {} +" "$log" ||
     fail "workspace ownership was not reconciled at the resolved root"
 grep -Fqx "chown ${container_user} ${repo}/.git/hooks" "$log" ||
     fail "Git hooks ownership was not reconciled at the exact hooks path"
@@ -107,6 +126,31 @@ grep -Fqx "chmod u+rwx ${repo}/.git/hooks" "$log" ||
 ! grep -Fq "$unrelated" "$log" ||
     fail "ownership reconciliation touched an unrelated path"
 [ -w "$repo/.git/hooks" ] || fail "the hook fixture is not writable after reconciliation"
+
+echo "==> unexpected nested mounts are rejected before ownership mutation"
+mountinfo="${fixture}/mountinfo"
+printf '42 35 0:42 / %s rw,relatime - bind /source rw,relatime\n' \
+    "$repo/.venv" >"$mountinfo"
+if ! bash -c '. "$1"; reject_unexpected_workspace_mounts "$2" "$3"' \
+    _ "$helpers" "$repo" "$mountinfo"; then
+    fail "the configured .venv mount was unexpectedly rejected"
+fi
+printf '43 35 0:43 / %s rw,relatime - bind /source rw,relatime\n' \
+    "$repo/foreign-mount" >>"$mountinfo"
+if bash -c '. "$1"; reject_unexpected_workspace_mounts "$2" "$3"' \
+    _ "$helpers" "$repo" "$mountinfo" 2>"${tmp_root}/mount.err"; then
+    fail "an unexpected nested mount was accepted"
+fi
+grep -Fq "unexpected nested mount" "${tmp_root}/mount.err" ||
+    fail "nested mount rejection did not explain the workspace boundary"
+
+echo "==> an ordinary in-workspace .venv is included instead of pruned"
+: >"$log"
+MOUNTPOINT_MODE=unmounted run_reconcile >/dev/null
+grep -Fqx "find ${repo} -xdev ! -user ${container_user} -exec chown -h ${container_user} {} +" "$log" ||
+    fail "an ordinary in-workspace .venv was not included in ownership repair"
+! grep -Fq "${repo}/.venv -prune" "$log" ||
+    fail "an ordinary in-workspace .venv was unexpectedly pruned"
 
 echo "==> the exact safe.directory entry is added beside, not replaced by, a wildcard"
 safe_entries="$(HOME="$home" XDG_CONFIG_HOME="$xdg" \
@@ -141,7 +185,7 @@ if run_reconcile_at "$escape_repo" "$escape_xdg/git/config" "$escape_log" >/dev/
 fi
 grep -Fq "outside the discovered workspace" "${tmp_root}/escape.err" ||
     fail "the nested checkout rejection did not explain the workspace boundary"
-[ ! -s "$escape_log" ] ||
+! grep -Eq '^(find|chown|chmod|mkdir) ' "$escape_log" ||
     fail "the rejected nested checkout triggered privileged ownership changes"
 
 echo "==> missing in-workspace hooks ancestors become writable"

@@ -50,6 +50,45 @@ resolve_workspace_root() {
     return 1
 }
 
+workspace_venv_is_mount() {
+    local workspace_root="$1"
+
+    [ -d "$workspace_root/.venv" ] || return 1
+    command -v mountpoint >/dev/null 2>&1 || return 1
+    mountpoint -q "$workspace_root/.venv"
+}
+
+reject_unexpected_workspace_mounts() {
+    local workspace_root="$1"
+    local mountinfo="${2:-/proc/self/mountinfo}"
+    local mount_path mount_paths
+
+    [ -r "$mountinfo" ] || return 0
+    mount_paths="$(awk -v root="$workspace_root" '
+        {
+            mount_path = $5
+            gsub(/\\040/, " ", mount_path)
+            gsub(/\\011/, "\t", mount_path)
+            gsub(/\\134/, "\\", mount_path)
+            if (index(mount_path, root "/") == 1) {
+                print mount_path
+            }
+        }
+    ' "$mountinfo")" || return 1
+    while IFS= read -r mount_path; do
+        case "$mount_path" in
+        "$workspace_root" | "$workspace_root/.venv" | "$workspace_root/.venv"/*)
+            ;;
+        "$workspace_root"/*)
+            echo "ERROR: refusing to reconcile an unexpected nested mount inside the workspace: ${mount_path}" >&2
+            return 1
+            ;;
+        esac
+    done <<EOF
+$mount_paths
+EOF
+}
+
 reconcile_workspace_ownership() {
     local env_gitconfig="$1"
     local workspace_root canonical_workspace_root git_dir default_hooks_dir hooks_dir container_user
@@ -70,12 +109,16 @@ reconcile_workspace_ownership() {
         git config --file "$env_gitconfig" --add safe.directory "$workspace_root"
     fi
 
-    # Now that the marker path is trusted, let Git canonicalize the repository
-    # root and resolve the hooks path lefthook will write. The marker walk is
-    # the ownership boundary: a nested checkout with a configured
-    # core.worktree must not make Git report a parent repository and expand the
-    # privileged traversal beyond that boundary.
-    canonical_workspace_root="$(git -C "$workspace_root" rev-parse --path-format=absolute --show-toplevel)" || {
+    container_user="$(id -un)"
+    # Let root perform this read-only boundary check: a mismatched checkout can
+    # have a private .git directory whose owner prevents the container user
+    # from canonicalizing it. The exact -c entry keeps this probe scoped to the
+    # discovered workspace. Generated Python projects mount .venv as a
+    # container-private volume; prune that path only when it is actually
+    # mounted, so an ordinary in-workspace .venv is reconciled.
+    canonical_workspace_root="$(sudo git -C "$workspace_root" \
+        -c "safe.directory=$workspace_root" \
+        rev-parse --path-format=absolute --show-toplevel)" || {
         echo "ERROR: Git could not resolve the repository/workspace root at ${workspace_root}" >&2
         return 1
     }
@@ -87,6 +130,21 @@ reconcile_workspace_ownership() {
         echo "ERROR: Git resolved a repository/workspace root outside the discovered workspace: ${canonical_workspace_root}" >&2
         return 1
     }
+    reject_unexpected_workspace_mounts "$workspace_root"
+
+    # Repair ownership before the container user reads repository metadata.
+    # -xdev handles mounts on a different device, while -user avoids issuing
+    # needless chowns on already-reconciled entries. Changing only the owner
+    # preserves host-provided shared groups, and -h ensures an in-workspace
+    # symlink cannot redirect chown to an external target.
+    if workspace_venv_is_mount "$workspace_root"; then
+        sudo find "$workspace_root" -xdev \
+            -path "$workspace_root/.venv" -prune -o \
+            ! -user "$container_user" -exec chown -h "$container_user" {} +
+    else
+        sudo find "$workspace_root" -xdev \
+            ! -user "$container_user" -exec chown -h "$container_user" {} +
+    fi
 
     git_dir="$(git -C "$workspace_root" rev-parse --path-format=absolute --absolute-git-dir)" || {
         echo "ERROR: Git could not resolve the Git directory for ${workspace_root}" >&2
@@ -100,17 +158,6 @@ reconcile_workspace_ownership() {
         return 1
         ;;
     esac
-
-    container_user="$(id -un)"
-    # Stay on the bind-mounted filesystem. Generated Python projects mount a
-    # container-private .venv below the workspace; prune it explicitly even
-    # when a Linux bind mount and named volume report the same device, while
-    # -xdev handles mounts on a different device. Changing only the owner
-    # preserves host-provided shared groups, while -h ensures an in-workspace
-    # symlink cannot redirect chown to an external target.
-    sudo find "$workspace_root" -xdev \
-        -path "$workspace_root/.venv" -prune -o \
-        -exec chown -h "$container_user" {} +
 
     # post-create.sh copies the repository's managed hooks to .git/hooks even
     # when Git's effective core.hooksPath is a user-managed path elsewhere.
