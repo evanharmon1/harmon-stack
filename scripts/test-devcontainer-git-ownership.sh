@@ -90,9 +90,10 @@ resolved="$(run_reconcile)"
 [ "$resolved" = "$repo" ] ||
     fail "resolved workspace root was '$resolved', expected '$repo'"
 owner="$(id -un):$(id -gn)"
-grep -Fqx "chown -R ${owner} ${repo}" "$log" ||
+container_user="$(id -un)"
+grep -Fqx "find ${repo} -xdev -exec chown -h ${container_user} {} +" "$log" ||
     fail "workspace ownership was not reconciled at the resolved root"
-grep -Fqx "chown -R ${owner} ${repo}/.git/hooks" "$log" ||
+grep -Fqx "chown ${owner} ${repo}/.git/hooks" "$log" ||
     fail "Git hooks ownership was not reconciled at the exact hooks path"
 grep -Fqx "chmod u+rwx ${repo}/.git/hooks" "$log" ||
     fail "Git hooks were not made writable"
@@ -119,16 +120,18 @@ safe_entries="$(HOME="$home" XDG_CONFIG_HOME="$xdg" \
 [ "$(printf '%s\n' "$safe_entries" | grep -Fxc "$repo")" -eq 1 ] ||
     fail "repeated reconciliation duplicated safe.directory: ${safe_entries}"
 
-echo "==> hooks paths outside the workspace are rejected before mutation"
+echo "==> missing in-workspace hooks ancestors become writable"
+git -C "$repo" config core.hooksPath .config/git/hooks
+run_reconcile >/dev/null
+for directory in "$repo/.config" "$repo/.config/git" "$repo/.config/git/hooks"; do
+    [ -d "$directory" ] || fail "hooks ancestor was not created: ${directory}"
+    [ -w "$directory" ] || fail "hooks ancestor is not writable: ${directory}"
+done
+
+echo "==> hooks paths outside the workspace are left unchanged"
 git -C "$repo" config core.hooksPath "$unrelated/hooks"
-before_lines="$(wc -l <"$log" | tr -d ' ')"
-set +e
-run_reconcile >/dev/null 2>"${tmp_root}/outside.err"
-outside_rc=$?
-set -e
-[ "$outside_rc" -ne 0 ] ||
-    fail "an out-of-workspace hooks path was accepted"
-[ "$(wc -l <"$log" | tr -d ' ')" = "$before_lines" ] ||
+run_reconcile >/dev/null
+! grep -Fq "$unrelated" "$log" ||
     fail "an out-of-workspace hooks path triggered ownership mutation"
 
 echo "devcontainer git ownership: all cases passed"

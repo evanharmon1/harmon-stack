@@ -52,7 +52,7 @@ resolve_workspace_root() {
 
 reconcile_workspace_ownership() {
     local env_gitconfig="$1"
-    local workspace_root hooks_dir owner
+    local workspace_root git_dir default_hooks_dir hooks_dir container_user container_group owner
 
     workspace_root="$(resolve_workspace_root "$(pwd -P)")" || {
         echo "ERROR: could not resolve the repository/workspace root from $(pwd -P)" >&2
@@ -83,34 +83,83 @@ reconcile_workspace_ownership() {
         git config --file "$env_gitconfig" --add safe.directory "$workspace_root"
     fi
 
-    hooks_dir="$(git -C "$workspace_root" rev-parse --path-format=absolute --git-path hooks)" || {
-        echo "ERROR: Git could not resolve the hooks directory for ${workspace_root}" >&2
+    git_dir="$(git -C "$workspace_root" rev-parse --path-format=absolute --absolute-git-dir)" || {
+        echo "ERROR: Git could not resolve the Git directory for ${workspace_root}" >&2
         return 1
     }
-    case "$hooks_dir" in
+    default_hooks_dir="${git_dir%/}/hooks"
+    case "$default_hooks_dir" in
     "$workspace_root"/*) ;;
     *)
-        echo "ERROR: refusing to reconcile a hooks directory outside the workspace: ${hooks_dir}" >&2
+        echo "ERROR: refusing to reconcile a default hooks directory outside the workspace: ${default_hooks_dir}" >&2
         return 1
         ;;
     esac
-    [ ! -L "$hooks_dir" ] || {
-        echo "ERROR: refusing to reconcile a symlinked hooks directory: ${hooks_dir}" >&2
+
+    container_user="$(id -un)"
+    container_group="$(id -gn)"
+    owner="${container_user}:${container_group}"
+    # Stay on the bind-mounted filesystem. Generated Python projects mount a
+    # container-private .venv below the workspace; -xdev keeps this repair
+    # from recursively changing that unrelated volume. Changing only the
+    # owner preserves host-provided shared groups, while -h ensures an
+    # in-workspace symlink cannot redirect chown to an external target.
+    sudo find "$workspace_root" -xdev -exec chown -h "$container_user" {} +
+
+    # post-create.sh copies the repository's managed hooks to .git/hooks even
+    # when Git's effective core.hooksPath is a user-managed path elsewhere.
+    # Create and repair that default directory without following symlinks.
+    if [ ! -L "$default_hooks_dir" ]; then
+        ensure_workspace_directory "$workspace_root" "$default_hooks_dir" "$owner"
+    fi
+
+    hooks_dir="$(git -C "$workspace_root" rev-parse --path-format=absolute --git-path hooks)" || {
+        echo "ERROR: Git could not resolve the effective hooks directory for ${workspace_root}" >&2
         return 1
     }
-
-    owner="$(id -un):$(id -gn)"
-    sudo chown -R "$owner" "$workspace_root"
-    if [ ! -d "$hooks_dir" ]; then
-        sudo mkdir -p "$hooks_dir"
-    fi
-    # Keep this explicit even though the normal .git/hooks path is covered by
-    # the workspace chown: lefthook must be able to install hooks, and a custom
-    # in-workspace core.hooksPath must receive the same guarantee.
-    sudo chown -R "$owner" "$hooks_dir"
-    sudo chmod u+rwx "$hooks_dir"
+    case "$hooks_dir" in
+    "$workspace_root"/*)
+        if [ "$hooks_dir" != "$default_hooks_dir" ]; then
+            ensure_workspace_directory "$workspace_root" "$hooks_dir" "$owner"
+        fi
+        ;;
+    *)
+        # A user-level core.hooksPath is intentionally not ours to chown. If
+        # it is writable, lefthook can continue to use it; if not, lefthook's
+        # existing failure remains visible instead of mutating an unrelated
+        # path.
+        echo "==> Leaving user-managed Git hooks path outside the workspace unchanged: ${hooks_dir}"
+        ;;
+    esac
 
     printf '%s\n' "$workspace_root"
+}
+
+ensure_workspace_directory() {
+    local workspace_root="$1"
+    local directory="$2"
+    local owner="$3"
+    local current="$directory"
+
+    case "$directory" in
+    "$workspace_root"/*) ;;
+    *)
+        echo "ERROR: refusing to create a directory outside the workspace: ${directory}" >&2
+        return 1
+        ;;
+    esac
+    while [ "$current" != "$workspace_root" ]; do
+        [ ! -L "$current" ] || {
+            echo "ERROR: refusing to reconcile a symlinked workspace directory: ${current}" >&2
+            return 1
+        }
+        if [ ! -d "$current" ]; then
+            sudo mkdir -p "$current"
+        fi
+        sudo chown "$owner" "$current"
+        sudo chmod u+rwx "$current"
+        current="$(dirname "$current")"
+    done
 }
 
 # --- End workspace ownership reconciliation ---
