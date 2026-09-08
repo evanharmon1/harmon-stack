@@ -42,6 +42,10 @@ mkdir -p "$(dirname "$ENV_GITCONFIG")"
 resolve_workspace_root() {
     local candidate="$1"
     while [ "$candidate" != "/" ]; do
+        if [ -L "$candidate/.git" ]; then
+            echo "ERROR: refusing a symlinked Git marker at $candidate/.git" >&2
+            return 1
+        fi
         if [ -e "$candidate/.git" ]; then
             printf '%s\n' "$candidate"
             return 0

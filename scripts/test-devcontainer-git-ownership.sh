@@ -50,8 +50,10 @@ grep -q '^reconcile_workspace_permissions()' "$helpers" ||
     fail "permissions reconciliation still changes ownership"
 ! grep -Fq 'find' "$helpers" ||
     fail "permissions reconciliation still walks the workspace"
-! grep -Eq 'mountpoint|hard.?link|symlink|core[.]hooksPath' "$helpers" ||
+! grep -Eq 'mountpoint|hard.?link|core[.]hooksPath' "$helpers" ||
     fail "permissions reconciliation retained recursive filesystem policy"
+grep -Fq '[ -L "$candidate/.git" ]' "$helpers" ||
+    fail "permissions reconciliation does not reject symlinked Git markers"
 grep -Fq 'sudo chmod -R a+rwX "$workspace_root/.git"' "$helpers" ||
     fail "permissions reconciliation does not grant Git metadata permissions"
 
@@ -220,6 +222,27 @@ safe_entries="$(HOME="$home" XDG_CONFIG_HOME="$xdg" git config --file "$xdg/git/
 owner_after="$(ls -dn "$repo/.git" | awk '{ print $3 ":" $4 }')"
 [ "$owner_after" = "$owner_before" ] ||
     fail "repeated reconciliation changed Git metadata ownership"
+
+echo "==> symlinked Git markers fail closed before chmod"
+symlink_repo="$fixture/workspaces/symlinked"
+symlink_target="$fixture/external-git-target"
+symlink_config="$fixture/symlink-xdg/git/config"
+symlink_log="$fixture/symlink-sudo.log"
+mkdir -p "$symlink_repo/subdirectory" "$symlink_target/.git/hooks" "$fixture/symlink-xdg/git"
+ln -s "$symlink_target/.git" "$symlink_repo/.git"
+chmod 0700 "$symlink_target/.git"
+symlink_mode_before="$(ls -ld "$symlink_target/.git" | awk '{ print $1 }')"
+if run_reconcile_at "$symlink_repo" "$symlink_config" "$symlink_log" >/dev/null 2>"$tmp_root/symlink.err"; then
+    fail "a symlinked Git marker unexpectedly passed permissions reconciliation"
+fi
+[ ! -e "$symlink_log" ] || [ ! -s "$symlink_log" ] ||
+    fail "symlink rejection invoked sudo chmod"
+symlink_mode_after="$(ls -ld "$symlink_target/.git" | awk '{ print $1 }')"
+[ "$symlink_mode_after" = "$symlink_mode_before" ] ||
+    fail "symlink rejection changed the external Git metadata mode"
+! git config --file "$symlink_config" --get-all safe.directory 2>/dev/null |
+    grep -Fqx "$symlink_repo" ||
+    fail "symlink rejection persisted safe.directory"
 
 echo "==> permission failures stop before adding safe.directory"
 failed_repo="$fixture/workspaces/failed"
