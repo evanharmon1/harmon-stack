@@ -1,0 +1,15 @@
+# Upstream provenance
+
+- Original author: Matt Pocock
+- Source: https://github.com/mattpocock/skills
+- Imported commit: `6654f6b60cd9d5be8b54c6fafe44346dabeb3b76`
+- Upstream path: `skills/engineering/setup-matt-pocock-skills`
+- License: MIT; see [LICENSE.upstream](LICENSE.upstream)
+
+## Local modifications
+
+- Updated triage skill discovery and invocation references for the local `matt-triage` rename.
+- Added the attribution notice in `SKILL.md`.
+- Adapted Markdown formatting to satisfy harmon-devkit lint rules without changing the skill's instructions.
+- Added the local canonical GitHub issue-title convention so `to-spec`,
+  `to-tickets`, and `wayfinder` publish free-form scoped titles consistently.

@@ -50,7 +50,7 @@ In prompt order, as defined in `copier.yml`. "Asked when" is the question's
 | 14 | `use_release_please` | bool | **yes** | always | `release.yml`, release-please config/manifest, changelog scripts |
 | 15 | `release_content_paths` | str (space-separated) | `""` | `use_release_please` | `release-content-guard.yml`; **empty = no guard** |
 | 16 | `use_skills_sync` | bool | **yes** | always | `.skills-sync.yaml`, `sync-harmon-devkit.yml`, `task sync:skills` / `verify:skills`; seeds `claim_release_available` |
-| 17 | `skill_categories` | multiselect `universal`/`backend`/`frontend`/`infra`/`mobile`/`repo` | seeded from `project_type` | `use_skills_sync` | **Seeds `.skills-sync.yaml` only** — never a file gate (see below) |
+| 17 | `skill_categories` | multiselect `universal`/`backend`/`frontend`/`infra`/`matt-pocock`/`mobile`/`repo` | seeded from `project_type` | `use_skills_sync` | **Seeds `.skills-sync.yaml` only** — never a file gate (see below) |
 | 18 | `use_shared_agents` | bool | **yes** | `use_skills_sync` | Also vendors devkit subagents into `.claude/agents` + `.codex/agents/implementer.toml` |
 | 19 | `use_foreman` | bool | **no** | always | `taskfiles/`, `.foreman.toml`, tag-protection rulesets, `audit-foreman-adapters.sh`; **requires `devcontainer`** (validator on Q26) |
 | 20 | `foreman_additional_trusted_actors` | str (CSV) | `""` | `use_foreman` | Additional GitHub logins trusted to arm Foreman or supply prompt content; security-sensitive and deduplicated with the built-in actors |

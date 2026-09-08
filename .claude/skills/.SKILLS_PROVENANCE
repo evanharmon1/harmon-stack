@@ -2,9 +2,9 @@
 # source: https://github.com/evanharmon1/harmon-devkit.git
 # ref: v0.40.0 (4ef33169978944a0b3d9d3519e55e1da6d638560)
 # path: ai/skills
-# categories: universal, repo
+# categories: universal, repo, matt-pocock
 # agents-dest: .claude/agents
-# managed: breakdown, claim, implement, integrate, issue-title-support, kickoff, label-registry-support, orchestrator, retro, review, standardize-repo, track-work, triage, wrap
+# managed: breakdown, claim, code-review, codebase-design, domain-modeling, grill-me, grill-with-docs, grilling, handoff, implement, integrate, issue-title-support, kickoff, label-registry-support, matt-implement, matt-triage, orchestrator, prototype, research, retro, review, setup-matt-pocock-skills, standardize-repo, tdd, to-spec, to-tickets, track-work, triage, wayfinder, wrap
 # update: edit .skills-sync.yaml, then run 'task sync:skills' and commit.
 # Any directory NOT listed on '# managed:' is a local skill owned by this
 # repo — the sync never touches it.
