@@ -13,39 +13,52 @@ fail() {
 
 test_tmp="$(mktemp -d -t harmon-init-setup-versions-XXXXXX)"
 trap 'rm -rf "$test_tmp"' EXIT
-fake_bin="${test_tmp}/bin"
-downloads="${test_tmp}/downloads"
-install_log="${test_tmp}/installs"
-mkdir -p "$fake_bin" "$downloads"
+stale_bin="${test_tmp}/stale-bin"
+helper_bin="${test_tmp}/helpers"
+curl_log="${test_tmp}/curl.log"
+install_log="${test_tmp}/install.log"
+mkdir -p "$stale_bin" "$helper_bin"
+: >"$curl_log"
 : >"$install_log"
 
-# Bind the test to the real action body, and prove the three root/template
-# blocks stay identical. The template has surrounding Jinja, but these tool
-# installers are unconditional twins.
-python3 - "$root_action" "$template_action" "${test_tmp}/install-lint-tools.sh" "$downloads" <<'PY'
+# Bind the test to the real action body and prove the complete shared installer
+# segment stays identical between the root action and its template twin.
+python3 - "$root_action" "$template_action" "${test_tmp}/install-lint-tools.sh" <<'PY'
 import pathlib
 import sys
 
-root_path, template_path, output_path, downloads = sys.argv[1:]
+root_path, template_path, output_path = sys.argv[1:]
 root = pathlib.Path(root_path).read_text()
 template = pathlib.Path(template_path).read_text()
 
-for dependency in ("koalaman/shellcheck", "mvdan/sh", "rhysd/actionlint"):
-    marker = f"depName={dependency} "
 
-    def block(text: str) -> str:
-        start = text.index(marker)
-        start = text.rfind("\n", 0, start) + 1
-        end = text.index("\n        fi\n", start) + len("\n        fi\n")
-        return text[start:end]
+def installer_segment(text: str) -> str:
+    start = text.index(
+        "        # renovate: datasource=github-releases depName=koalaman/shellcheck "
+    )
+    actionlint_install = text.index(
+        '          install -m 0755 "${lint_tools_tmp}/actionlint"', start
+    )
+    end = text.index("\n        fi\n", actionlint_install) + len("\n        fi\n")
+    return text[start:end]
 
-    root_block = block(root)
-    if root_block != block(template):
-        raise SystemExit(f"{dependency}: root/template installer blocks differ")
-    if "| grep -q" in root_block:
-        raise SystemExit(
-            f"{dependency}: version guard reintroduced the producer | grep -q pipefail hazard"
-        )
+
+root_segment = installer_segment(root)
+if root_segment != installer_segment(template):
+    raise SystemExit("root/template pinned lint-tool installer segments differ")
+if "| grep -q" in root_segment:
+    raise SystemExit("version guard reintroduced the producer | grep -q hazard")
+for expected in (
+    "X64|x86_64)",
+    "ARM64|arm64|aarch64)",
+    "Unsupported runner architecture",
+    "harmon-init-lint-tools-download.XXXXXX",
+    '>> "$GITHUB_PATH"',
+    "fb096c5d1ac6beabbdbaa2874d025badb03ee07929f0c9ff67563ce8c75398b1",
+    "32d92acaa5cd8abb29fc49dac123dc412442d5713967819d8af2c29f1b3857c7",
+):
+    if expected not in root_segment:
+        raise SystemExit(f"installer segment is missing {expected!r}")
 
 lines = root.splitlines()
 step = lines.index(
@@ -62,143 +75,233 @@ for line in lines[run + 1 :]:
 
 if not body:
     raise SystemExit("lint-tools action body extraction was empty")
-script = "#!/usr/bin/env bash\nset -euo pipefail\n" + "\n".join(body) + "\n"
-script = script.replace("/tmp/", downloads.rstrip("/") + "/")
-pathlib.Path(output_path).write_text(script)
+pathlib.Path(output_path).write_text(
+    "#!/usr/bin/env bash\nset -euo pipefail\n" + "\n".join(body) + "\n"
+)
 PY
 chmod +x "${test_tmp}/install-lint-tools.sh"
 
-cat >"${fake_bin}/shellcheck" <<'EOF'
+cat >"${stale_bin}/shellcheck" <<'EOF'
 #!/usr/bin/env bash
 printf '%s\n' 'ShellCheck - shell script analysis tool' 'version: 0.9.0'
 EOF
-cat >"${fake_bin}/shfmt" <<'EOF'
+cat >"${stale_bin}/shfmt" <<'EOF'
 #!/usr/bin/env bash
 printf '%s\n' 'v3.12.0'
 EOF
-cat >"${fake_bin}/actionlint" <<'EOF'
+cat >"${stale_bin}/actionlint" <<'EOF'
 #!/usr/bin/env bash
 printf '%s\n' '1.7.11' 'installed by building from source' 'built with go1.24.0 compiler for linux/amd64'
 EOF
-cat >"${fake_bin}/yq" <<'EOF'
+cat >"${helper_bin}/yq" <<'EOF'
 #!/usr/bin/env bash
 printf '%s\n' 'yq (https://github.com/mikefarah/yq/) version v4.44.3'
 EOF
-cat >"${fake_bin}/yamllint" <<'EOF'
+cat >"${helper_bin}/yamllint" <<'EOF'
 #!/usr/bin/env bash
 exit 0
 EOF
-cat >"${fake_bin}/curl" <<'EOF'
+cat >"${helper_bin}/curl" <<'EOF'
 #!/usr/bin/env bash
 set -euo pipefail
 output=
+url=
 while [ "$#" -gt 0 ]; do
-    if [ "$1" = -o ]; then
+    case "$1" in
+    -o)
         output="$2"
         shift 2
-    else
+        ;;
+    http*)
+        url="$1"
         shift
-    fi
+        ;;
+    *) shift ;;
+    esac
 done
-if [ -n "$output" ]; then
-    if [ "${output##*/}" = shfmt ]; then
-        cat >"$output" <<'SHFMT'
+[ -n "$output" ] && [ -n "$url" ]
+mkdir -p "$(dirname "$output")"
+printf '%s|%s\n' "$output" "$url" >>"$TEST_CURL_LOG"
+case "${output##*/}" in
+shfmt)
+    cat >"$output" <<'SHFMT'
 #!/usr/bin/env bash
 printf '%s\n' 'v3.13.1'
 SHFMT
-        chmod +x "$output"
-    else
-        printf '%s\n' archive >"$output"
-    fi
-else
-    printf '%s\n' archive
-fi
+    chmod +x "$output"
+    ;;
+*) printf '%s\n' archive >"$output" ;;
+esac
 EOF
-cat >"${fake_bin}/tar" <<'EOF'
+cat >"${helper_bin}/tar" <<'EOF'
 #!/usr/bin/env bash
 set -euo pipefail
-case " $* " in
-*" -xJf "*)
-    mkdir -p "${TEST_DOWNLOADS}/shellcheck-v0.10.0"
-    cat >"${TEST_DOWNLOADS}/shellcheck-v0.10.0/shellcheck" <<'SHELLCHECK'
+archive=
+destination=
+while [ "$#" -gt 0 ]; do
+    case "$1" in
+    -xJf|-xzf)
+        archive="$2"
+        shift 2
+        ;;
+    -C)
+        destination="$2"
+        shift 2
+        ;;
+    *) shift ;;
+    esac
+done
+[ -n "$archive" ] && [ -n "$destination" ]
+case "${archive##*/}" in
+shellcheck.tar.xz)
+    mkdir -p "${destination}/shellcheck-v0.10.0"
+    cat >"${destination}/shellcheck-v0.10.0/shellcheck" <<'SHELLCHECK'
 #!/usr/bin/env bash
 printf '%s\n' 'ShellCheck - shell script analysis tool' 'version: 0.10.0'
 SHELLCHECK
-    chmod +x "${TEST_DOWNLOADS}/shellcheck-v0.10.0/shellcheck"
+    chmod +x "${destination}/shellcheck-v0.10.0/shellcheck"
     ;;
-*)
-    # Consume the complete curl stream so this fixture also exercises the
-    # action under pipefail without manufacturing an early-reader SIGPIPE.
-    cat >/dev/null
-    cat >"${TEST_DOWNLOADS}/actionlint" <<'ACTIONLINT'
+actionlint.tar.gz)
+    cat >"${destination}/actionlint" <<'ACTIONLINT'
 #!/usr/bin/env bash
 printf '%s\n' '1.7.12' 'installed by building from source' 'built with go1.24.0 compiler for linux/amd64'
 ACTIONLINT
-    chmod +x "${TEST_DOWNLOADS}/actionlint"
-    ;;
-esac
-EOF
-cat >"${fake_bin}/sha256sum" <<'EOF'
-#!/usr/bin/env bash
-cat >/dev/null
-EOF
-cat >"${fake_bin}/sudo" <<'EOF'
-#!/usr/bin/env bash
-set -euo pipefail
-case "$1" in
-install)
-    source_path="$4"
-    destination="$5"
-    ;;
-mv)
-    source_path="$2"
-    destination="$3"
+    chmod +x "${destination}/actionlint"
     ;;
 *) exit 1 ;;
 esac
-if [ "${destination%/}" = /usr/local/bin ]; then
-    destination="${TEST_FAKE_BIN}/${source_path##*/}"
-else
-    destination="${TEST_FAKE_BIN}/${destination##*/}"
-fi
+EOF
+cat >"${helper_bin}/sha256sum" <<'EOF'
+#!/usr/bin/env bash
+cat >/dev/null
+EOF
+cat >"${helper_bin}/install" <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+[ "$1" = -m ] && [ "$2" = 0755 ] && [ "$#" -eq 4 ]
+source_path="$3"
+destination="$4"
+mkdir -p "$(dirname "$destination")"
 cp "$source_path" "$destination"
 chmod +x "$destination"
-printf '%s\n' "${destination##*/}" >>"${TEST_INSTALL_LOG}"
+printf '%s|%s\n' "${destination##*/}" "$destination" >>"$TEST_INSTALL_LOG"
 EOF
-chmod +x "${fake_bin}"/*
+chmod +x "${stale_bin}"/* "${helper_bin}"/*
 
 run_action() {
-    PATH="${fake_bin}:${PATH}" \
-        TEST_DOWNLOADS="$downloads" \
-        TEST_FAKE_BIN="$fake_bin" \
+    arch="$1"
+    runner_temp="$2"
+    github_path="$3"
+    effective_path="${stale_bin}:${helper_bin}:${PATH}"
+    if [ -s "$github_path" ]; then
+        published_bin="$(tail -n 1 "$github_path")"
+        effective_path="${published_bin}:${effective_path}"
+    fi
+    PATH="$effective_path" \
+        RUNNER_ARCH="$arch" \
+        RUNNER_TEMP="$runner_temp" \
+        GITHUB_PATH="$github_path" \
+        TEST_CURL_LOG="$curl_log" \
         TEST_INSTALL_LOG="$install_log" \
         "${test_tmp}/install-lint-tools.sh"
 }
 
-run_action
+assert_pins() {
+    published_bin="$1"
+    tool_path="${published_bin}:${stale_bin}:${helper_bin}:${PATH}"
+    shellcheck_output="$(PATH="$tool_path" shellcheck --version)"
+    case "$shellcheck_output" in
+    *"version: 0.10.0"*) : ;;
+    *) fail "wrong-version shellcheck remained authoritative: ${shellcheck_output}" ;;
+    esac
+    [ "$(PATH="$tool_path" shfmt --version)" = v3.13.1 ] ||
+        fail "wrong-version shfmt remained authoritative"
+    actionlint_output="$(PATH="$tool_path" actionlint --version)"
+    case "$actionlint_output" in
+    1.7.12$'\n'*) : ;;
+    *) fail "wrong-version actionlint remained authoritative: ${actionlint_output}" ;;
+    esac
+}
 
-shellcheck_output="$(PATH="${fake_bin}:${PATH}" shellcheck --version)"
-case "$shellcheck_output" in
-*"version: 0.10.0"*) : ;;
-*) fail "wrong-version shellcheck was not replaced: ${shellcheck_output}" ;;
+run_arch_case() {
+    arch="$1"
+    shellcheck_asset="$2"
+    shfmt_asset="$3"
+    actionlint_asset="$4"
+    runner_temp="${test_tmp}/runner-${arch}"
+    github_path="${test_tmp}/github-path-${arch}"
+    mkdir -p "$runner_temp"
+    : >"$github_path"
+
+    installs_before="$(wc -l <"$install_log" | tr -d ' ')"
+    run_action "$arch" "$runner_temp" "$github_path"
+    published_bin="$(tail -n 1 "$github_path")"
+    case "$published_bin" in
+    "${runner_temp}/harmon-init-lint-tools/0.10.0-3.13.1-1.7.12/${arch}") : ;;
+    *) fail "${arch}: GITHUB_PATH did not receive the job-private versioned bin first" ;;
+    esac
+    assert_pins "$published_bin"
+
+    grep -Fq "/${shellcheck_asset}" "$curl_log" || fail "${arch}: wrong shellcheck asset"
+    grep -Fq "/${shfmt_asset}" "$curl_log" || fail "${arch}: wrong shfmt asset"
+    grep -Fq "/${actionlint_asset}" "$curl_log" || fail "${arch}: wrong actionlint asset"
+    if grep -Fq '/usr/local/bin' "$install_log"; then
+        fail "${arch}: installer still wrote to the host-global bin directory"
+    fi
+
+    installs_after="$(wc -l <"$install_log" | tr -d ' ')"
+    [ "$((installs_after - installs_before))" -eq 3 ] ||
+        fail "${arch}: mismatched tools were not each installed exactly once"
+
+    # A second invocation in the same job sees the published versioned bin at
+    # the front of PATH and must not install again.
+    run_action "$arch" "$runner_temp" "$github_path"
+    [ "$(wc -l <"$install_log" | tr -d ' ')" -eq "$installs_after" ] ||
+        fail "${arch}: matching pinned tools were reinstalled"
+}
+
+run_arch_case X64 \
+    shellcheck-v0.10.0.linux.x86_64.tar.xz \
+    shfmt_v3.13.1_linux_amd64 \
+    actionlint_1.7.12_linux_amd64.tar.gz
+run_arch_case ARM64 \
+    shellcheck-v0.10.0.linux.aarch64.tar.xz \
+    shfmt_v3.13.1_linux_arm64 \
+    actionlint_1.7.12_linux_arm64.tar.gz
+
+# The stale PATH entries remain untouched; precedence comes only from the
+# job-private directory published by the action.
+[ "$(PATH="${stale_bin}:${PATH}" shfmt --version)" = v3.12.0 ] ||
+    fail "fixture did not keep the stale PATH tool ahead of /usr/local/bin"
+
+x64_download="$(sed -n '1p' "$curl_log")"
+arm64_download="$(sed -n '4p' "$curl_log")"
+x64_download_dir="$(dirname "${x64_download%%|*}")"
+arm64_download_dir="$(dirname "${arm64_download%%|*}")"
+[ "$x64_download_dir" != "$arm64_download_dir" ] ||
+    fail "architecture runs reused one download directory"
+case "$x64_download_dir" in
+"${test_tmp}/runner-X64"/harmon-init-lint-tools-download.*) : ;;
+*) fail "X64 downloads escaped RUNNER_TEMP" ;;
 esac
-[ "$(PATH="${fake_bin}:${PATH}" shfmt --version)" = v3.13.1 ] ||
-    fail "wrong-version shfmt was not replaced"
-actionlint_output="$(PATH="${fake_bin}:${PATH}" actionlint --version)"
-case "$actionlint_output" in
-1.7.12$'\n'*) : ;;
-*) fail "wrong-version actionlint was not replaced: ${actionlint_output}" ;;
+case "$arm64_download_dir" in
+"${test_tmp}/runner-ARM64"/harmon-init-lint-tools-download.*) : ;;
+*) fail "ARM64 downloads escaped RUNNER_TEMP" ;;
 esac
 
-for tool in shellcheck shfmt actionlint; do
-    [ "$(grep -c "^${tool}$" "$install_log")" -eq 1 ] ||
-        fail "${tool} was not installed exactly once"
-done
-
-# Once PATH holds the pins, a second action run must keep them and skip all
-# three installers.
-run_action
-[ "$(wc -l <"$install_log" | tr -d ' ')" -eq 3 ] ||
-    fail "matching pinned tools were reinstalled"
+unsupported_temp="${test_tmp}/runner-unsupported"
+unsupported_path="${test_tmp}/github-path-unsupported"
+mkdir -p "$unsupported_temp"
+: >"$unsupported_path"
+curl_count="$(wc -l <"$curl_log" | tr -d ' ')"
+if unsupported_output="$(run_action RISCV64 "$unsupported_temp" "$unsupported_path" 2>&1)"; then
+    fail "unsupported architecture was accepted"
+fi
+case "$unsupported_output" in
+*"Unsupported runner architecture"*) : ;;
+*) fail "unsupported architecture failure did not explain the refusal" ;;
+esac
+[ "$(wc -l <"$curl_log" | tr -d ' ')" -eq "$curl_count" ] ||
+    fail "unsupported architecture downloaded an asset before failing"
 
 echo "setup action tool-version checks: PASS"
