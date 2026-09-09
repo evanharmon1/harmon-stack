@@ -85,6 +85,8 @@ runs:
         SHFMT_VERSION=3.13.1
         # renovate: datasource=github-releases depName=rhysd/actionlint extractVersion=^v?(?<version>.+)$
         ACTIONLINT_VERSION=1.7.12
+        # renovate: datasource=pypi depName=yamllint
+        YAMLLINT_VERSION=1.38.0
 [% if use_skills_sync %]
         # renovate: datasource=github-releases depName=mikefarah/yq extractVersion=^v?(?<version>.+)$
         YQ_VERSION=4.44.3
@@ -120,7 +122,7 @@ runs:
 
         : "${RUNNER_TEMP:?RUNNER_TEMP is required for job-private lint tools}"
         : "${GITHUB_PATH:?GITHUB_PATH is required to publish pinned lint tools}"
-        lint_tools_bin="${RUNNER_TEMP}/harmon-init-lint-tools/${SHELLCHECK_VERSION}-${SHFMT_VERSION}-${ACTIONLINT_VERSION}/${runner_arch}"
+        lint_tools_bin="${RUNNER_TEMP}/harmon-init-lint-tools/${SHELLCHECK_VERSION}-${SHFMT_VERSION}-${ACTIONLINT_VERSION}-${YAMLLINT_VERSION}/${runner_arch}"
         mkdir -p "$lint_tools_bin"
         printf '%s\n' "$lint_tools_bin" >> "$GITHUB_PATH"
         export PATH="${lint_tools_bin}:${PATH}"
@@ -174,10 +176,15 @@ runs:
           install -m 0755 "${lint_tools_tmp}/yq" "${lint_tools_bin}/yq"
         fi
 [% endif %]
-        if ! command -v yamllint >/dev/null 2>&1; then
-          # renovate: datasource=pypi depName=yamllint
-          YAMLLINT_VERSION=1.38.0
-          python3 -m pip install "yamllint==${YAMLLINT_VERSION}"
+        installed_yamllint_version=
+        IFS= read -r installed_yamllint_version <<<"$(yamllint --version 2>/dev/null || true)"
+        installed_yamllint_version="${installed_yamllint_version#yamllint }"
+        if [ "$installed_yamllint_version" != "$YAMLLINT_VERSION" ]; then
+          yamllint_venv="${RUNNER_TEMP}/harmon-init-lint-tools/yamllint-${YAMLLINT_VERSION}"
+          python3 -m venv "$yamllint_venv"
+          "${yamllint_venv}/bin/python" -m pip install --disable-pip-version-check \
+            "yamllint==${YAMLLINT_VERSION}"
+          ln -sfn "${yamllint_venv}/bin/yamllint" "${lint_tools_bin}/yamllint"
         fi
     - name: Install gitleaks
       if: inputs.gitleaks == 'true'

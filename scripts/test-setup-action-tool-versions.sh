@@ -36,11 +36,8 @@ def installer_segment(text: str) -> str:
     start = text.index(
         "        # renovate: datasource=github-releases depName=koalaman/shellcheck "
     )
-    yq_install = text.index(
-        '          install -m 0755 "${lint_tools_tmp}/yq"', start
-    )
-    end = text.index("\n        fi\n", yq_install) + len("\n        fi\n")
-    return text[start:end]
+    end = text.index("\n    - name: Install gitleaks", start)
+    return text[start:end] + "\n"
 
 
 root_segment = installer_segment(root)
@@ -104,7 +101,11 @@ cat >"${stale_bin}/yq" <<'EOF'
 #!/usr/bin/env bash
 exit 127
 EOF
-cat >"${helper_bin}/yamllint" <<'EOF'
+cat >"${stale_bin}/yamllint" <<'EOF'
+#!/usr/bin/env bash
+printf '%s\n' 'yamllint 1.37.1'
+EOF
+cat >"${helper_bin}/file" <<'EOF'
 #!/usr/bin/env bash
 exit 0
 EOF
@@ -187,7 +188,47 @@ esac
 EOF
 cat >"${helper_bin}/sha256sum" <<'EOF'
 #!/usr/bin/env bash
-cat >/dev/null
+set -euo pipefail
+IFS=' ' read -r expected_digest downloaded_path
+[ -n "$expected_digest" ] && [ -n "$downloaded_path" ]
+asset_url=
+while IFS='|' read -r logged_path logged_url; do
+    if [ "$logged_path" = "$downloaded_path" ]; then
+        asset_url="$logged_url"
+    fi
+done <"$TEST_CURL_LOG"
+case "${asset_url}|${expected_digest}" in
+*/shfmt_v3.13.1_linux_amd64\|fb096c5d1ac6beabbdbaa2874d025badb03ee07929f0c9ff67563ce8c75398b1 | \
+    */shfmt_v3.13.1_linux_arm64\|32d92acaa5cd8abb29fc49dac123dc412442d5713967819d8af2c29f1b3857c7 | \
+    */yq_linux_amd64\|a2c097180dd884a8d50c956ee16a9cec070f30a7947cf4ebf87d5f36213e9ed7 | \
+    */yq_linux_arm64\|0e7e1524f68d91b3ff9b089872d185940ab0fa020a5a9052046ef10547023156)
+        ;;
+*)
+    printf 'unexpected asset/checksum pair: %s|%s\n' "$asset_url" "$expected_digest" >&2
+    exit 1
+    ;;
+esac
+EOF
+cat >"${helper_bin}/python3" <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+[ "$#" -eq 3 ] && [ "$1" = -m ] && [ "$2" = venv ]
+venv_path="$3"
+mkdir -p "${venv_path}/bin"
+cat >"${venv_path}/bin/python" <<'PYTHON'
+#!/usr/bin/env bash
+set -euo pipefail
+[ "$#" -eq 5 ] && [ "$1" = -m ] && [ "$2" = pip ] && [ "$3" = install ]
+[ "$4" = --disable-pip-version-check ] && [ "$5" = yamllint==1.38.0 ]
+venv_bin="$(dirname "$0")"
+cat >"${venv_bin}/yamllint" <<'YAMLLINT'
+#!/usr/bin/env bash
+printf '%s\n' 'yamllint 1.38.0'
+YAMLLINT
+chmod +x "${venv_bin}/yamllint"
+printf '%s|%s\n' yamllint "${venv_bin}/yamllint" >>"$TEST_INSTALL_LOG"
+PYTHON
+chmod +x "${venv_path}/bin/python"
 EOF
 cat >"${helper_bin}/install" <<'EOF'
 #!/usr/bin/env bash
@@ -237,6 +278,8 @@ assert_pins() {
     esac
     [ "$(PATH="$tool_path" yq --version)" = 'yq (https://github.com/mikefarah/yq/) version v4.44.3' ] ||
         fail "missing yq was not replaced with the architecture-correct pin"
+    [ "$(PATH="$tool_path" yamllint --version)" = 'yamllint 1.38.0' ] ||
+        fail "wrong-version yamllint remained authoritative"
 }
 
 run_arch_case() {
@@ -254,7 +297,7 @@ run_arch_case() {
     run_action "$arch" "$runner_temp" "$github_path"
     published_bin="$(tail -n 1 "$github_path")"
     case "$published_bin" in
-    "${runner_temp}/harmon-init-lint-tools/0.10.0-3.13.1-1.7.12/${arch}") : ;;
+    "${runner_temp}/harmon-init-lint-tools/0.10.0-3.13.1-1.7.12-1.38.0/${arch}") : ;;
     *) fail "${arch}: GITHUB_PATH did not receive the job-private versioned bin first" ;;
     esac
     assert_pins "$published_bin"
@@ -268,7 +311,7 @@ run_arch_case() {
     fi
 
     installs_after="$(wc -l <"$install_log" | tr -d ' ')"
-    [ "$((installs_after - installs_before))" -eq 4 ] ||
+    [ "$((installs_after - installs_before))" -eq 5 ] ||
         fail "${arch}: mismatched or missing tools were not each installed exactly once"
 
     # A second invocation in the same job sees the published versioned bin at
