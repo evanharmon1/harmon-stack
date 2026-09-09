@@ -1397,6 +1397,10 @@ agy24_link_home="${work_dir}/agy24-managed-link-home"
 mkdir -p "${agy24_link_home}/.local/bin"
 printf 'managed compatibility binary\n' >"${agy24_link_home}/.local/bin/agy-real"
 ln -s "${agy24_link_home}/.local/bin/agy-real" "${agy24_link_home}/.local/bin/agy"
+if HOME="$agy24_link_home" HARMON_BOT_AUTONOMY_ANTIGRAVITY=disabled \
+    bash "$agy_module" verify >/dev/null 2>&1; then
+    fail "disabled verify accepted an owned agy -> agy-real compatibility symlink"
+fi
 HOME="$agy24_link_home" HARMON_BOT_AUTONOMY_ANTIGRAVITY=disabled bash "$ensure_script" >/dev/null
 [ ! -e "${agy24_link_home}/.local/bin/agy-real" ] &&
     [ ! -e "${agy24_link_home}/.local/bin/agy" ] &&
@@ -1411,6 +1415,10 @@ chmod +x "${agy24_wrapper_home}/.local/bin/agy-real"
 HOME="$agy24_wrapper_home" HARMON_BOT_AUTONOMY_ANTIGRAVITY=enabled \
     BOT_AUTONOMY_ANTIGRAVITY_SETTINGS="${agy24_wrapper_home}/.gemini/antigravity-cli/settings.json" \
     bash "$agy_module" apply >/dev/null
+if HOME="$agy24_wrapper_home" HARMON_BOT_AUTONOMY_ANTIGRAVITY=disabled \
+    bash "$agy_module" verify >/dev/null 2>&1; then
+    fail "disabled verify accepted a marker-owned Antigravity wrapper"
+fi
 HOME="$agy24_wrapper_home" HARMON_BOT_AUTONOMY_ANTIGRAVITY=disabled bash "$ensure_script" >/dev/null
 [ ! -e "${agy24_wrapper_home}/.local/bin/agy-real" ] &&
     [ ! -e "${agy24_wrapper_home}/.local/bin/agy" ] ||
@@ -1425,6 +1433,9 @@ HOME="$agy24_file_home" HARMON_BOT_AUTONOMY_ANTIGRAVITY=disabled bash "$ensure_s
 [ "$(cat "${agy24_file_home}/.local/bin/agy-real")" = "independent real" ] &&
     [ "$(cat "${agy24_file_home}/.local/bin/agy")" = "independent launcher" ] ||
     fail "disabled cleanup modified independent regular files"
+HOME="$agy24_file_home" HARMON_BOT_AUTONOMY_ANTIGRAVITY=disabled \
+    bash "$agy_module" verify >/dev/null ||
+    fail "disabled verify rejected independent regular launcher files"
 
 # An independent symlink and an orphan agy-real are likewise not evidence that
 # this module owns either path.
@@ -1438,5 +1449,35 @@ HOME="$agy24_symlink_home" HARMON_BOT_AUTONOMY_ANTIGRAVITY=disabled bash "$ensur
     [ -L "${agy24_symlink_home}/.local/bin/agy" ] &&
     [ "$(readlink "${agy24_symlink_home}/.local/bin/agy")" = "${agy24_symlink_home}/.local/bin/other-agy" ] ||
     fail "disabled cleanup modified an independent symlink or agy-real file"
+HOME="$agy24_symlink_home" HARMON_BOT_AUTONOMY_ANTIGRAVITY=disabled \
+    bash "$agy_module" verify >/dev/null ||
+    fail "disabled verify rejected an independent launcher symlink"
+
+# The installer publishes durable inode-based ownership before exposing the
+# managed executable. If installation is interrupted before agy is linked (or
+# the launcher is later lost), disabled verification still fails closed and
+# cleanup can remove the proven orphan without guessing from its filename.
+agy24_interrupted_home="${work_dir}/agy24-interrupted-install-home"
+mkdir -p "${agy24_interrupted_home}/.local/bin"
+printf '#!/bin/sh\nprintf "1.1.11\\n"\n' >"${agy24_interrupted_home}/.local/bin/agy-real"
+chmod +x "${agy24_interrupted_home}/.local/bin/agy-real"
+HOME="$agy24_interrupted_home" HARMON_BOT_AUTONOMY_ANTIGRAVITY=enabled \
+    bash "$ensure_script" >/dev/null
+[ "${agy24_interrupted_home}/.local/bin/agy-real" -ef \
+    "${agy24_interrupted_home}/.local/bin/.agy-real.harmon-init-owned" ] ||
+    fail "enabled install did not publish durable ownership proof for agy-real"
+rm -f "${agy24_interrupted_home}/.local/bin/agy"
+if HOME="$agy24_interrupted_home" HARMON_BOT_AUTONOMY_ANTIGRAVITY=disabled \
+    bash "$agy_module" verify >/dev/null 2>&1; then
+    fail "disabled verify accepted an owned orphan agy-real from an interrupted install"
+fi
+HOME="$agy24_interrupted_home" HARMON_BOT_AUTONOMY_ANTIGRAVITY=disabled \
+    bash "$ensure_script" >/dev/null
+[ ! -e "${agy24_interrupted_home}/.local/bin/agy-real" ] &&
+    [ ! -e "${agy24_interrupted_home}/.local/bin/.agy-real.harmon-init-owned" ] ||
+    fail "disabled cleanup left an owned orphan agy-real or its ownership proof behind"
+HOME="$agy24_interrupted_home" HARMON_BOT_AUTONOMY_ANTIGRAVITY=disabled \
+    bash "$agy_module" verify >/dev/null ||
+    fail "disabled verify failed after cleaning an interrupted managed install"
 
 echo "All bot-autonomy unit tests passed."

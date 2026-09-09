@@ -9,7 +9,24 @@ build="4956531888881664"
 install_dir="$HOME/.local/bin"
 real_bin="${install_dir}/agy-real"
 link_bin="${install_dir}/agy"
+ownership_file="${install_dir}/.agy-real.harmon-init-owned"
 wrapper_marker="# bot-autonomy: Antigravity autonomy wrapper. Installed by"
+
+install_owned_real() (
+    source_bin="$1"
+    install -d -m 0755 "$install_dir"
+    real_tmp="$(mktemp "${install_dir}/agy-real.tmp.XXXXXX")"
+    ownership_tmp="${real_tmp}.owned"
+    trap 'rm -f "$real_tmp" "$ownership_tmp"' EXIT
+
+    install -m 0755 "$source_bin" "$real_tmp"
+    # A hard link is durable ownership proof without trusting a filename or
+    # mutable marker body. Publish it before the atomic executable replacement
+    # so an interruption can never leave an unowned managed agy-real behind.
+    ln "$real_tmp" "$ownership_tmp"
+    mv -f "$ownership_tmp" "$ownership_file"
+    mv -f "$real_tmp" "$real_bin"
+)
 
 # HARMON_BOT_AUTONOMY_ANTIGRAVITY is the rendered containerEnv marker (bot
 # and dev devcontainer.json twins, from the use_antigravity_cli Copier
@@ -21,15 +38,28 @@ wrapper_marker="# bot-autonomy: Antigravity autonomy wrapper. Installed by"
 # belong to the user and survive a disabled run.
 if [ "${HARMON_BOT_AUTONOMY_ANTIGRAVITY:-}" != "enabled" ]; then
     launcher_owned=false
+    real_owned=false
     if [ -L "$link_bin" ] && [ "$(readlink "$link_bin")" = "$real_bin" ]; then
         launcher_owned=true
     elif [ -f "$link_bin" ] && [ ! -L "$link_bin" ] && grep -Fq "$wrapper_marker" "$link_bin"; then
         launcher_owned=true
     fi
+    if [ -e "$ownership_file" ] && [ -e "$real_bin" ] && [ "$ownership_file" -ef "$real_bin" ]; then
+        real_owned=true
+    fi
 
     if [ "$launcher_owned" = true ]; then
-        rm -f "$real_bin" "$link_bin"
+        rm -f "$link_bin"
     fi
+    if [ "$real_owned" = true ] ||
+        { [ "$launcher_owned" = true ] && [ ! -e "$ownership_file" ]; }; then
+        # The launcher predicate is the backward-compatible proof for copies
+        # installed before the durable ownership file existed.
+        rm -f "$real_bin"
+    fi
+    # The ownership file is module metadata. If it no longer names the same
+    # inode, agy-real was independently replaced and must be preserved.
+    rm -f "$ownership_file"
     exit 0
 fi
 
@@ -38,6 +68,7 @@ fi
 # copy, which takes precedence in the repo-managed shell PATH.
 if [ -x "$real_bin" ] &&
     [ "$("$real_bin" --version | head -1)" = "$version" ]; then
+    install_owned_real "$real_bin"
     ln -sfn "$real_bin" "$link_bin"
     exit 0
 fi
@@ -49,7 +80,7 @@ if [ -x "$system_binary" ] && [ "$("$system_binary" --version | head -1)" = "$ve
     # would shadow the newly pinned and smoke-tested shared-image binary. Do not
     # create a new shadow copy when the image binary is already sufficient.
     if [ -x "$real_bin" ]; then
-        install -m 0755 "$system_binary" "$real_bin"
+        install_owned_real "$system_binary"
         ln -sfn "$real_bin" "$link_bin"
     elif [ -L "$link_bin" ]; then
         # No local real copy to (re)point at, so this branch installs
@@ -102,5 +133,5 @@ curl -fsSL --retry 3 "$url" -o "$tarball"
 printf '%s  %s\n' "$sha512" "$tarball" | sha512sum --check -
 tar -xzf "$tarball" -C "$work_dir" antigravity
 install -d -m 0755 "$install_dir"
-install -m 0755 "$work_dir/antigravity" "$real_bin"
+install_owned_real "$work_dir/antigravity"
 ln -sfn "$real_bin" "$link_bin"

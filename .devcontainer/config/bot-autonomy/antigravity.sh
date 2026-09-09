@@ -17,11 +17,10 @@ set -euo pipefail
 #                          ~/.local/bin/agy (state a), overwriting whatever
 #                          .devcontainer/config/ensure-antigravity-cli.sh
 #                          (which runs earlier in post-create) left there.
-#   marker != enabled  -> apply-antigravity-settings.sh restore; ~/.local/
-#                          bin/agy is left untouched — ensure-antigravity-
-#                          cli.sh has already left it absent (state c), and
-#                          re-touching it here would be redundant, not
-#                          corrective.
+#   marker != enabled  -> apply-antigravity-settings.sh restore; independently
+#                          owned launchers are allowed, while any compatibility
+#                          launcher or executable still carrying this module's
+#                          ownership proof fails verification.
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 APPLY_SETTINGS="${BOT_AUTONOMY_ANTIGRAVITY_APPLY_SCRIPT:-${SCRIPT_DIR}/../apply-antigravity-settings.sh}"
@@ -29,7 +28,9 @@ BOT_DEFAULTS="${BOT_AUTONOMY_ANTIGRAVITY_DEFAULTS:-${SCRIPT_DIR}/../antigravity-
 SETTINGS="${BOT_AUTONOMY_ANTIGRAVITY_SETTINGS:-$HOME/.gemini/antigravity-cli/settings.json}"
 AGY_LINK="${BOT_AUTONOMY_AGY_LINK:-$HOME/.local/bin/agy}"
 AGY_REAL="${BOT_AUTONOMY_AGY_REAL:-$HOME/.local/bin/agy-real}"
+AGY_OWNERSHIP="${BOT_AUTONOMY_AGY_OWNERSHIP:-$(dirname "$AGY_REAL")/.agy-real.harmon-init-owned}"
 AGY_SYSTEM_BINARY="${HARMON_ANTIGRAVITY_SYSTEM_BINARY:-/usr/local/bin/agy}"
+WRAPPER_MARKER="# bot-autonomy: Antigravity autonomy wrapper. Installed by"
 
 marker_enabled() {
     [ "${HARMON_BOT_AUTONOMY_ANTIGRAVITY:-}" = "enabled" ]
@@ -184,9 +185,17 @@ verify_wrapper_enabled() {
     }
 }
 
-verify_agy_absent() {
-    if [ -e "$AGY_LINK" ] || [ -L "$AGY_LINK" ]; then
-        echo "antigravity: verify failed — ${AGY_LINK} should be absent when Antigravity autonomy is disabled-by-option" >&2
+verify_agy_unmanaged() {
+    if [ -L "$AGY_LINK" ] && [ "$(readlink "$AGY_LINK")" = "$AGY_REAL" ]; then
+        echo "antigravity: verify failed — ${AGY_LINK} is a managed compatibility symlink while Antigravity autonomy is disabled-by-option" >&2
+        exit 1
+    fi
+    if [ -f "$AGY_LINK" ] && [ ! -L "$AGY_LINK" ] && grep -Fq "$WRAPPER_MARKER" "$AGY_LINK"; then
+        echo "antigravity: verify failed — ${AGY_LINK} is the managed autonomy wrapper while Antigravity autonomy is disabled-by-option" >&2
+        exit 1
+    fi
+    if [ -e "$AGY_OWNERSHIP" ]; then
+        echo "antigravity: verify failed — ${AGY_OWNERSHIP} proves a managed agy-real remnant while Antigravity autonomy is disabled-by-option" >&2
         exit 1
     fi
 }
@@ -197,7 +206,7 @@ cmd_verify() {
         verify_settings_autonomous
         verify_wrapper_enabled
     else
-        verify_agy_absent
+        verify_agy_unmanaged
     fi
 }
 
