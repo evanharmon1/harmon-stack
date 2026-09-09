@@ -8,6 +8,17 @@ remains a manual override. New entries are appended above by release-please;
 entries at and below v3.0.0 were hand-written in
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) style.
 
+## [4.43.1](https://github.com/evanharmon1/harmon-init/compare/v4.43.0...v4.43.1) (2026-09-09)
+
+
+### Bug Fixes
+
+* **ci:** make fixture teardown resilient ([#1211](https://github.com/evanharmon1/harmon-init/issues/1211)) ([c1ea519](https://github.com/evanharmon1/harmon-init/commit/c1ea5191eabc968433fcd401621808a49ec1b1b0))
+* **ci:** mirror offline result-schemas and claim-release-merged tests in build workflow ([#1195](https://github.com/evanharmon1/harmon-init/issues/1195)) ([dcc5bc1](https://github.com/evanharmon1/harmon-init/commit/dcc5bc1373bf3b6bbfaf254435919e1d867af871))
+* preserve bind-mounted devcontainer Git ownership ([#1214](https://github.com/evanharmon1/harmon-init/issues/1214)) ([f03466f](https://github.com/evanharmon1/harmon-init/commit/f03466f4b8c7c4433782ecf93f3a7a607c1645e2))
+* **template:** sync harmon-devkit skills to v0.40.0 ([#1191](https://github.com/evanharmon1/harmon-init/issues/1191)) ([c67ed8f](https://github.com/evanharmon1/harmon-init/commit/c67ed8f0f603ac6060930ecd36e939a77314e842))
+* **worktree:** isolate truncation shim probes ([#1212](https://github.com/evanharmon1/harmon-init/issues/1212)) ([89e12e6](https://github.com/evanharmon1/harmon-init/commit/89e12e6f1a98889e2a63b66982889d11dd8ab3b0))
+
 ## [4.43.0](https://github.com/evanharmon1/harmon-init/compare/v4.42.2...v4.43.0) (2026-09-07)
 
 
