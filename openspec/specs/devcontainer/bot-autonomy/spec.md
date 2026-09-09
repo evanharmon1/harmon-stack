@@ -629,6 +629,14 @@ login/interactive shell, a Foreman-dispatched process, a cron job).
   removes `agy-real` only when matching inode metadata independently proves
   ownership, and preserves every unowned regular file or symlink at either path
 
+#### Scenario: a legacy pre-metadata agy-real is preserved
+- **WHEN** a disabled rolling update finds an `agy` launcher whose link target
+  or wrapper marker proves launcher ownership and a markerless `agy-real` left
+  by a release that predates executable ownership metadata
+- **THEN** it removes only `agy` and preserves `agy-real` byte-for-byte; its
+  path, version, prior management history, and relationship to `agy` do not
+  substitute for matching independent inode ownership proof
+
 #### Scenario: bot apply installs the wrapper when enabled, over any replaceable value ensure-antigravity-cli.sh left
 - **WHEN** `HARMON_BOT_AUTONOMY_ANTIGRAVITY` reads `enabled` and the
   `antigravity` module's `apply` runs in the bot profile, after

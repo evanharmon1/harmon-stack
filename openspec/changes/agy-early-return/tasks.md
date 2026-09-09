@@ -68,3 +68,15 @@
       ownership-based disabled cleanup and verification semantics.
 - [x] 5.5 Run `task test:bot-autonomy`, `task spec:validate`, `task check`,
       `task test:template:all`, `task verify`, and `task security:secrets`.
+
+## 6. Challenge-round-4 legacy fixture remediation (#1205/#1207)
+
+- [x] 6.1 Update the root/template devcontainer assertion fixture so a
+      disabled rolling update removes the owned `agy` launcher but preserves a
+      markerless pre-ownership-metadata `agy-real` byte-for-byte.
+- [x] 6.2 Add the equivalent explicit scenario to the in-flight delta and
+      canonical bot-autonomy spec without weakening the independent inode
+      ownership invariant.
+- [x] 6.3 Run the focused bot-autonomy and devcontainer assertions, then
+      `task spec:validate`, `task check`, `task test:template:all`, `task
+      verify`, and `task security:secrets`.

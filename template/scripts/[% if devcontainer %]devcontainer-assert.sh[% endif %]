@@ -618,18 +618,26 @@ SENTINEL_SCRIPT
     printf '%s\n' '#!/bin/sh' 'printf "%s\\n" "1.0.0"' >"${agy_roll_home}/.local/bin/agy-real"
     chmod 0755 "$agy_system_binary" "${agy_roll_home}/.local/bin/agy-real"
 
-    # Disabled marker (including entirely absent): no download; a launcher
-    # symlink to agy-real proves that the pair is module-owned and removable.
-    local agy_disabled_home
+    # Disabled marker (including entirely absent): no download. A launcher
+    # symlink to agy-real proves ownership of agy only. This models a rolling
+    # update from a pre-ownership-metadata release: even if that release had
+    # installed agy-real, the current script cannot distinguish it from an
+    # independent executable and must preserve it byte-for-byte.
+    local agy_disabled_home agy_disabled_real_before
     agy_disabled_home="${work_dir}/agy-disabled-home"
+    agy_disabled_real_before="${work_dir}/agy-disabled-real-before"
     mkdir -p "${agy_disabled_home}/.local/bin"
-    : >"${agy_disabled_home}/.local/bin/agy-real"
+    printf '%s\n' '#!/bin/sh' 'printf "%s\\n" "1.0.0"' >"${agy_disabled_home}/.local/bin/agy-real"
+    chmod 0755 "${agy_disabled_home}/.local/bin/agy-real"
+    cp "${agy_disabled_home}/.local/bin/agy-real" "$agy_disabled_real_before"
     ln -s "${agy_disabled_home}/.local/bin/agy-real" "${agy_disabled_home}/.local/bin/agy"
     HOME="$agy_disabled_home" bash "$agy_ensure" >/dev/null
-    [ ! -e "${agy_disabled_home}/.local/bin/agy-real" ] ||
-        fail "ensure-antigravity-cli.sh left agy-real behind with the marker disabled"
+    cmp -s "$agy_disabled_real_before" "${agy_disabled_home}/.local/bin/agy-real" ||
+        fail "disabled cleanup changed a markerless pre-metadata agy-real"
     [ ! -e "${agy_disabled_home}/.local/bin/agy" ] ||
-        fail "ensure-antigravity-cli.sh left agy behind with the marker disabled"
+        fail "disabled cleanup left its owned agy symlink behind"
+    [ ! -e "${agy_disabled_home}/.local/bin/.agy-real.harmon-init-owned" ] ||
+        fail "disabled cleanup claimed a markerless pre-metadata agy-real"
 
     # Enabled marker, current shared-image binary already sufficient, no
     # pre-existing local shadow: no shadow copy is created, and agy stays
