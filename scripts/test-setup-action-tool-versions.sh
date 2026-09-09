@@ -36,15 +36,20 @@ def installer_segment(text: str) -> str:
     start = text.index(
         "        # renovate: datasource=github-releases depName=koalaman/shellcheck "
     )
-    actionlint_install = text.index(
-        '          install -m 0755 "${lint_tools_tmp}/actionlint"', start
+    yq_install = text.index(
+        '          install -m 0755 "${lint_tools_tmp}/yq"', start
     )
-    end = text.index("\n        fi\n", actionlint_install) + len("\n        fi\n")
+    end = text.index("\n        fi\n", yq_install) + len("\n        fi\n")
     return text[start:end]
 
 
 root_segment = installer_segment(root)
-if root_segment != installer_segment(template):
+template_segment = "\n".join(
+    line
+    for line in installer_segment(template).splitlines()
+    if line not in ("[% if use_skills_sync %]", "[% endif %]")
+) + "\n"
+if root_segment != template_segment:
     raise SystemExit("root/template pinned lint-tool installer segments differ")
 if "| grep -q" in root_segment:
     raise SystemExit("version guard reintroduced the producer | grep -q hazard")
@@ -56,6 +61,8 @@ for expected in (
     '>> "$GITHUB_PATH"',
     "fb096c5d1ac6beabbdbaa2874d025badb03ee07929f0c9ff67563ce8c75398b1",
     "32d92acaa5cd8abb29fc49dac123dc412442d5713967819d8af2c29f1b3857c7",
+    "a2c097180dd884a8d50c956ee16a9cec070f30a7947cf4ebf87d5f36213e9ed7",
+    "0e7e1524f68d91b3ff9b089872d185940ab0fa020a5a9052046ef10547023156",
 ):
     if expected not in root_segment:
         raise SystemExit(f"installer segment is missing {expected!r}")
@@ -93,9 +100,9 @@ cat >"${stale_bin}/actionlint" <<'EOF'
 #!/usr/bin/env bash
 printf '%s\n' '1.7.11' 'installed by building from source' 'built with go1.24.0 compiler for linux/amd64'
 EOF
-cat >"${helper_bin}/yq" <<'EOF'
+cat >"${stale_bin}/yq" <<'EOF'
 #!/usr/bin/env bash
-printf '%s\n' 'yq (https://github.com/mikefarah/yq/) version v4.44.3'
+exit 127
 EOF
 cat >"${helper_bin}/yamllint" <<'EOF'
 #!/usr/bin/env bash
@@ -128,6 +135,13 @@ shfmt)
 #!/usr/bin/env bash
 printf '%s\n' 'v3.13.1'
 SHFMT
+    chmod +x "$output"
+    ;;
+yq)
+    cat >"$output" <<'YQ'
+#!/usr/bin/env bash
+printf '%s\n' 'yq (https://github.com/mikefarah/yq/) version v4.44.3'
+YQ
     chmod +x "$output"
     ;;
 *) printf '%s\n' archive >"$output" ;;
@@ -221,6 +235,8 @@ assert_pins() {
     1.7.12$'\n'*) : ;;
     *) fail "wrong-version actionlint remained authoritative: ${actionlint_output}" ;;
     esac
+    [ "$(PATH="$tool_path" yq --version)" = 'yq (https://github.com/mikefarah/yq/) version v4.44.3' ] ||
+        fail "missing yq was not replaced with the architecture-correct pin"
 }
 
 run_arch_case() {
@@ -228,6 +244,7 @@ run_arch_case() {
     shellcheck_asset="$2"
     shfmt_asset="$3"
     actionlint_asset="$4"
+    yq_asset="$5"
     runner_temp="${test_tmp}/runner-${arch}"
     github_path="${test_tmp}/github-path-${arch}"
     mkdir -p "$runner_temp"
@@ -245,13 +262,14 @@ run_arch_case() {
     grep -Fq "/${shellcheck_asset}" "$curl_log" || fail "${arch}: wrong shellcheck asset"
     grep -Fq "/${shfmt_asset}" "$curl_log" || fail "${arch}: wrong shfmt asset"
     grep -Fq "/${actionlint_asset}" "$curl_log" || fail "${arch}: wrong actionlint asset"
+    grep -Fq "/${yq_asset}" "$curl_log" || fail "${arch}: wrong yq asset"
     if grep -Fq '/usr/local/bin' "$install_log"; then
         fail "${arch}: installer still wrote to the host-global bin directory"
     fi
 
     installs_after="$(wc -l <"$install_log" | tr -d ' ')"
-    [ "$((installs_after - installs_before))" -eq 3 ] ||
-        fail "${arch}: mismatched tools were not each installed exactly once"
+    [ "$((installs_after - installs_before))" -eq 4 ] ||
+        fail "${arch}: mismatched or missing tools were not each installed exactly once"
 
     # A second invocation in the same job sees the published versioned bin at
     # the front of PATH and must not install again.
@@ -263,11 +281,13 @@ run_arch_case() {
 run_arch_case X64 \
     shellcheck-v0.10.0.linux.x86_64.tar.xz \
     shfmt_v3.13.1_linux_amd64 \
-    actionlint_1.7.12_linux_amd64.tar.gz
+    actionlint_1.7.12_linux_amd64.tar.gz \
+    yq_linux_amd64
 run_arch_case ARM64 \
     shellcheck-v0.10.0.linux.aarch64.tar.xz \
     shfmt_v3.13.1_linux_arm64 \
-    actionlint_1.7.12_linux_arm64.tar.gz
+    actionlint_1.7.12_linux_arm64.tar.gz \
+    yq_linux_arm64
 
 # The stale PATH entries remain untouched; precedence comes only from the
 # job-private directory published by the action.
@@ -275,7 +295,7 @@ run_arch_case ARM64 \
     fail "fixture did not keep the stale PATH tool ahead of /usr/local/bin"
 
 x64_download="$(sed -n '1p' "$curl_log")"
-arm64_download="$(sed -n '4p' "$curl_log")"
+arm64_download="$(sed -n '5p' "$curl_log")"
 x64_download_dir="$(dirname "${x64_download%%|*}")"
 arm64_download_dir="$(dirname "${arm64_download%%|*}")"
 [ "$x64_download_dir" != "$arm64_download_dir" ] ||
