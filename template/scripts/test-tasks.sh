@@ -510,4 +510,9 @@ if [ -x ./scripts/test-terraform-changed.sh ]; then
     ./scripts/test-terraform-changed.sh
 fi
 
+if [ -x ./scripts/test-setup-action-tool-versions.sh ]; then
+    echo "==> setup action replaces mismatched lint-tool versions"
+    ./scripts/test-setup-action-tool-versions.sh
+fi
+
 echo "==> task targets OK (compile + bootstrap idempotency + path-safe formatting)"
