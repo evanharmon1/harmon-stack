@@ -80,3 +80,18 @@
 - [x] 6.3 Run the focused bot-autonomy and devcontainer assertions, then
       `task spec:validate`, `task check`, `task test:template:all`, `task
       verify`, and `task security:secrets`.
+
+## 7. Challenge-round-5 ownership protocol remediation (#1205/#1207)
+
+- [x] 7.1 Replace launcher-shape and same-inode ownership heuristics with
+      independent per-path identity-and-content proofs for `agy` and
+      `agy-real`; cleanup and disabled verification require those proofs.
+- [x] 7.2 Publish executable and launcher generations through recoverable
+      transactions, and add exact regression fixtures for an independent
+      natural symlink, an in-place executable rewrite, and an interrupted
+      old-to-new upgrade.
+- [x] 7.3 Preserve all affected root/template twins and reconcile the
+      canonical and in-flight bot-autonomy requirement with the new invariant.
+- [x] 7.4 Run the focused bot-autonomy and devcontainer assertions, then
+      `task spec:validate`, `task check`, `task test:template:all`, `task
+      verify`, and `task security:secrets`.

@@ -28,9 +28,11 @@ BOT_DEFAULTS="${BOT_AUTONOMY_ANTIGRAVITY_DEFAULTS:-${SCRIPT_DIR}/../antigravity-
 SETTINGS="${BOT_AUTONOMY_ANTIGRAVITY_SETTINGS:-$HOME/.gemini/antigravity-cli/settings.json}"
 AGY_LINK="${BOT_AUTONOMY_AGY_LINK:-$HOME/.local/bin/agy}"
 AGY_REAL="${BOT_AUTONOMY_AGY_REAL:-$HOME/.local/bin/agy-real}"
-AGY_OWNERSHIP="${BOT_AUTONOMY_AGY_OWNERSHIP:-$(dirname "$AGY_REAL")/.agy-real.harmon-init-owned}"
+AGY_REAL_OWNERSHIP="${BOT_AUTONOMY_AGY_OWNERSHIP:-$(dirname "$AGY_REAL")/.agy-real.harmon-init-owned}"
+AGY_REAL_TRANSACTION="${BOT_AUTONOMY_AGY_TRANSACTION:-$(dirname "$AGY_REAL")/.agy-real.harmon-init-transaction}"
+AGY_LINK_OWNERSHIP="${BOT_AUTONOMY_AGY_LINK_OWNERSHIP:-$(dirname "$AGY_LINK")/.agy.harmon-init-owned}"
+AGY_LINK_TRANSACTION="${BOT_AUTONOMY_AGY_LINK_TRANSACTION:-$(dirname "$AGY_LINK")/.agy.harmon-init-transaction}"
 AGY_SYSTEM_BINARY="${HARMON_ANTIGRAVITY_SYSTEM_BINARY:-/usr/local/bin/agy}"
-WRAPPER_MARKER="# bot-autonomy: Antigravity autonomy wrapper. Installed by"
 
 marker_enabled() {
     [ "${HARMON_BOT_AUTONOMY_ANTIGRAVITY:-}" = "enabled" ]
@@ -71,14 +73,23 @@ exec "\$real" --dangerously-skip-permissions "\$@"
 WRAPPER
 }
 
-install_wrapper() {
+install_wrapper() (
     install -d -m 0755 "$(dirname "$AGY_LINK")"
-    local tmp
-    tmp="$(mktemp)"
+    tmp="$(mktemp "$(dirname "$AGY_LINK")/agy.tmp.XXXXXX")"
+    proof_tmp="$(mktemp "${AGY_LINK_TRANSACTION}.tmp.XXXXXX")"
+    trap 'rm -f "$tmp" "$proof_tmp"' EXIT
     write_wrapper "$tmp"
     chmod 0755 "$tmp"
+    printf 'type=file\nidentity=%s\nsha512=%s\ntemp_name=%s\n' \
+        "$(stat -c '%d:%i' "$tmp" 2>/dev/null || stat -f '%d:%i' "$tmp")" \
+        "$(sha512sum "$tmp" | awk '{print $1}')" \
+        "$(basename "$tmp")" >"$proof_tmp"
+    chmod 0600 "$proof_tmp"
+    mv -f "$proof_tmp" "$AGY_LINK_TRANSACTION"
+    rm -f "$AGY_LINK"
     mv -f "$tmp" "$AGY_LINK"
-}
+    mv -f "$AGY_LINK_TRANSACTION" "$AGY_LINK_OWNERSHIP"
+)
 
 cmd_apply() {
     if marker_enabled; then
@@ -186,16 +197,12 @@ verify_wrapper_enabled() {
 }
 
 verify_agy_unmanaged() {
-    if [ -L "$AGY_LINK" ] && [ "$(readlink "$AGY_LINK")" = "$AGY_REAL" ]; then
-        echo "antigravity: verify failed — ${AGY_LINK} is a managed compatibility symlink while Antigravity autonomy is disabled-by-option" >&2
+    if [ -e "$AGY_LINK_OWNERSHIP" ] || [ -e "$AGY_LINK_TRANSACTION" ]; then
+        echo "antigravity: verify failed — managed ownership metadata remains for ${AGY_LINK} while Antigravity autonomy is disabled-by-option" >&2
         exit 1
     fi
-    if [ -f "$AGY_LINK" ] && [ ! -L "$AGY_LINK" ] && grep -Fq "$WRAPPER_MARKER" "$AGY_LINK"; then
-        echo "antigravity: verify failed — ${AGY_LINK} is the managed autonomy wrapper while Antigravity autonomy is disabled-by-option" >&2
-        exit 1
-    fi
-    if [ -e "$AGY_OWNERSHIP" ]; then
-        echo "antigravity: verify failed — ${AGY_OWNERSHIP} proves a managed agy-real remnant while Antigravity autonomy is disabled-by-option" >&2
+    if [ -e "$AGY_REAL_OWNERSHIP" ] || [ -e "$AGY_REAL_TRANSACTION" ]; then
+        echo "antigravity: verify failed — managed ownership metadata remains for ${AGY_REAL} while Antigravity autonomy is disabled-by-option" >&2
         exit 1
     fi
 }

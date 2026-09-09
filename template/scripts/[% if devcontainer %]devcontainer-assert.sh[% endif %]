@@ -618,11 +618,10 @@ SENTINEL_SCRIPT
     printf '%s\n' '#!/bin/sh' 'printf "%s\\n" "1.0.0"' >"${agy_roll_home}/.local/bin/agy-real"
     chmod 0755 "$agy_system_binary" "${agy_roll_home}/.local/bin/agy-real"
 
-    # Disabled marker (including entirely absent): no download. A launcher
-    # symlink to agy-real proves ownership of agy only. This models a rolling
-    # update from a pre-ownership-metadata release: even if that release had
-    # installed agy-real, the current script cannot distinguish it from an
-    # independent executable and must preserve it byte-for-byte.
+    # Disabled marker (including entirely absent): no download. This models a
+    # rolling update from a pre-ownership-metadata release: neither the natural
+    # agy -> agy-real shape nor the markerless executable proves ownership, so
+    # both paths must be preserved byte-for-byte.
     local agy_disabled_home agy_disabled_real_before
     agy_disabled_home="${work_dir}/agy-disabled-home"
     agy_disabled_real_before="${work_dir}/agy-disabled-real-before"
@@ -634,10 +633,13 @@ SENTINEL_SCRIPT
     HOME="$agy_disabled_home" bash "$agy_ensure" >/dev/null
     cmp -s "$agy_disabled_real_before" "${agy_disabled_home}/.local/bin/agy-real" ||
         fail "disabled cleanup changed a markerless pre-metadata agy-real"
-    [ ! -e "${agy_disabled_home}/.local/bin/agy" ] ||
-        fail "disabled cleanup left its owned agy symlink behind"
+    [ -L "${agy_disabled_home}/.local/bin/agy" ] &&
+        [ "$(readlink "${agy_disabled_home}/.local/bin/agy")" = "${agy_disabled_home}/.local/bin/agy-real" ] ||
+        fail "disabled cleanup changed a markerless pre-metadata agy symlink"
     [ ! -e "${agy_disabled_home}/.local/bin/.agy-real.harmon-init-owned" ] ||
         fail "disabled cleanup claimed a markerless pre-metadata agy-real"
+    [ ! -e "${agy_disabled_home}/.local/bin/.agy.harmon-init-owned" ] ||
+        fail "disabled cleanup claimed a markerless pre-metadata agy launcher"
 
     # Enabled marker, current shared-image binary already sufficient, no
     # pre-existing local shadow: no shadow copy is created, and agy stays
@@ -660,11 +662,17 @@ SENTINEL_SCRIPT
         fail "stale user-local Antigravity binary still shadows the shared-image pin"
     [ "$(readlink -f "${agy_roll_home}/.local/bin/agy")" = "$(readlink -f "${agy_roll_home}/.local/bin/agy-real")" ] ||
         fail "ensure-antigravity-cli.sh did not point agy at agy-real as a plain symlink"
+    [ -f "${agy_roll_home}/.local/bin/.agy-real.harmon-init-owned" ] &&
+        [ -f "${agy_roll_home}/.local/bin/.agy.harmon-init-owned" ] ||
+        fail "ensure-antigravity-cli.sh did not publish independent path ownership proofs"
 
     # Toggling back to disabled fully removes both — not merely skips the
     # download — reaching absence rather than a dangling link.
     HOME="$agy_roll_home" bash "$agy_ensure" >/dev/null
-    [ ! -e "${agy_roll_home}/.local/bin/agy-real" ] && [ ! -e "${agy_roll_home}/.local/bin/agy" ] ||
+    [ ! -e "${agy_roll_home}/.local/bin/agy-real" ] &&
+        [ ! -e "${agy_roll_home}/.local/bin/agy" ] &&
+        [ ! -e "${agy_roll_home}/.local/bin/.agy-real.harmon-init-owned" ] &&
+        [ ! -e "${agy_roll_home}/.local/bin/.agy.harmon-init-owned" ] ||
         fail "toggling the marker off did not fully remove agy-real/agy"
 
     agy_home="${work_dir}/agy-home"

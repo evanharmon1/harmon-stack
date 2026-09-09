@@ -9,45 +9,130 @@ build="4956531888881664"
 install_dir="$HOME/.local/bin"
 real_bin="${install_dir}/agy-real"
 link_bin="${install_dir}/agy"
-ownership_file="${install_dir}/.agy-real.harmon-init-owned"
-wrapper_marker="# bot-autonomy: Antigravity autonomy wrapper. Installed by"
+real_ownership_file="${install_dir}/.agy-real.harmon-init-owned"
+real_transaction_file="${install_dir}/.agy-real.harmon-init-transaction"
+launcher_ownership_file="${install_dir}/.agy.harmon-init-owned"
+launcher_transaction_file="${install_dir}/.agy.harmon-init-transaction"
+
+path_identity() {
+    stat -c '%d:%i' "$1" 2>/dev/null || stat -f '%d:%i' "$1"
+}
+
+file_sha512() {
+    sha512sum "$1" | awk '{print $1}'
+}
+
+proof_value() {
+    sed -n "s/^$2=//p" "$1" | head -1
+}
+
+proof_matches() {
+    proof="$1"
+    path="$2"
+    [ -f "$proof" ] && [ ! -L "$proof" ] || return 1
+    [ "$(proof_value "$proof" identity)" = "$(path_identity "$path" 2>/dev/null)" ] || return 1
+
+    case "$(proof_value "$proof" type)" in
+    file)
+        [ -f "$path" ] && [ ! -L "$path" ] &&
+            [ "$(proof_value "$proof" sha512)" = "$(file_sha512 "$path")" ]
+        ;;
+    symlink)
+        [ -L "$path" ] &&
+            [ "$(proof_value "$proof" target)" = "$(readlink "$path")" ]
+        ;;
+    *) return 1 ;;
+    esac
+}
+
+write_proof() (
+    path="$1"
+    proof="$2"
+    temp_name="$3"
+    proof_tmp="$(mktemp "${proof}.tmp.XXXXXX")"
+    trap 'rm -f "$proof_tmp"' EXIT
+
+    if [ -L "$path" ]; then
+        printf 'type=symlink\nidentity=%s\ntarget=%s\ntemp_name=%s\n' \
+            "$(path_identity "$path")" "$(readlink "$path")" "$temp_name" >"$proof_tmp"
+    else
+        printf 'type=file\nidentity=%s\nsha512=%s\ntemp_name=%s\n' \
+            "$(path_identity "$path")" "$(file_sha512 "$path")" "$temp_name" >"$proof_tmp"
+    fi
+    chmod 0600 "$proof_tmp"
+    mv -f "$proof_tmp" "$proof"
+)
+
+discard_transaction() {
+    transaction="$1"
+    prefix="$2"
+    temp_name="$(proof_value "$transaction" temp_name 2>/dev/null)"
+    case "$temp_name" in
+    "${prefix}.tmp."*) rm -f "${install_dir}/${temp_name}" ;;
+    esac
+    rm -f "$transaction"
+}
+
+recover_transaction() {
+    transaction="$1"
+    ownership="$2"
+    path="$3"
+    prefix="$4"
+    [ -e "$transaction" ] || return 0
+    if proof_matches "$transaction" "$path"; then
+        mv -f "$transaction" "$ownership"
+    else
+        discard_transaction "$transaction" "$prefix"
+    fi
+}
+
+publish_owned_launcher() (
+    link_tmp="$(mktemp "${install_dir}/agy.tmp.XXXXXX")"
+    rm -f "$link_tmp"
+    trap 'rm -f "$link_tmp"' EXIT
+    ln -s "$real_bin" "$link_tmp"
+    write_proof "$link_tmp" "$launcher_transaction_file" "$(basename "$link_tmp")"
+    rm -f "$link_bin"
+    mv -f "$link_tmp" "$link_bin"
+    mv -f "$launcher_transaction_file" "$launcher_ownership_file"
+)
 
 install_owned_real() (
     source_bin="$1"
     install -d -m 0755 "$install_dir"
     real_tmp="$(mktemp "${install_dir}/agy-real.tmp.XXXXXX")"
-    ownership_tmp="${real_tmp}.owned"
-    trap 'rm -f "$real_tmp" "$ownership_tmp"' EXIT
+    trap 'rm -f "$real_tmp"' EXIT
 
     install -m 0755 "$source_bin" "$real_tmp"
-    # A hard link is durable ownership proof without trusting a filename or
-    # mutable marker body. Publish it before the atomic executable replacement
-    # so an interruption can never leave an unowned managed agy-real behind.
-    ln "$real_tmp" "$ownership_tmp"
-    mv -f "$ownership_tmp" "$ownership_file"
+    # The transaction describes the new inode and immutable installed content.
+    # Publishing it first makes either side of the executable replacement
+    # recoverable without treating a filename, version, or mutable inode alone
+    # as ownership proof.
+    write_proof "$real_tmp" "$real_transaction_file" "$(basename "$real_tmp")"
+    rm -f "$real_bin"
     mv -f "$real_tmp" "$real_bin"
+    mv -f "$real_transaction_file" "$real_ownership_file"
 )
+
+install -d -m 0755 "$install_dir"
+recover_transaction "$real_transaction_file" "$real_ownership_file" "$real_bin" "agy-real"
+recover_transaction "$launcher_transaction_file" "$launcher_ownership_file" "$link_bin" "agy"
 
 # HARMON_BOT_AUTONOMY_ANTIGRAVITY is the rendered containerEnv marker (bot
 # and dev devcontainer.json twins, from the use_antigravity_cli Copier
 # answer) — the only channel this verbatim, template-twinned script may read
 # to learn that per-repo answer. Anything other than "enabled" (including
 # absent, on an image built before this marker existed) means: no download,
-# and remove agy only when its link target or wrapper marker proves ownership.
-# agy-real is removed only when its independent inode proof matches; launcher
-# ownership alone says nothing about the executable. Independent files and
-# symlinks at either path belong to the user and survive a disabled run.
+# and remove each path only when its own identity-and-content proof matches.
+# Launcher shape and executable version are never ownership authority.
+# Independent files and symlinks at either path survive a disabled run.
 if [ "${HARMON_BOT_AUTONOMY_ANTIGRAVITY:-}" != "enabled" ]; then
     launcher_owned=false
     real_owned=false
-    if [ -L "$link_bin" ] && [ "$(readlink "$link_bin")" = "$real_bin" ]; then
-        launcher_owned=true
-    elif [ -f "$link_bin" ] && [ ! -L "$link_bin" ] && grep -Fq "$wrapper_marker" "$link_bin"; then
+    if proof_matches "$launcher_ownership_file" "$link_bin"; then
         launcher_owned=true
     fi
-    if [ -f "$ownership_file" ] && [ ! -L "$ownership_file" ] &&
-        [ -f "$real_bin" ] && [ ! -L "$real_bin" ] &&
-        [ "$ownership_file" -ef "$real_bin" ]; then
+    if proof_matches "$real_ownership_file" "$real_bin"; then
         real_owned=true
     fi
 
@@ -57,9 +142,9 @@ if [ "${HARMON_BOT_AUTONOMY_ANTIGRAVITY:-}" != "enabled" ]; then
     if [ "$real_owned" = true ]; then
         rm -f "$real_bin"
     fi
-    # The ownership file is module metadata. If it no longer names the same
-    # inode, agy-real was independently replaced and must be preserved.
-    rm -f "$ownership_file"
+    # Stale proof belongs to the module, but never authorizes deletion of a
+    # path whose current identity and content no longer match.
+    rm -f "$launcher_ownership_file" "$real_ownership_file"
     exit 0
 fi
 
@@ -68,16 +153,12 @@ fi
 # copy, which takes precedence in the repo-managed shell PATH.
 if [ -x "$real_bin" ] &&
     [ "$("$real_bin" --version | head -1)" = "$version" ]; then
-    # Version equality proves compatibility, not ownership. In particular, an
-    # independently managed symlink must stay a symlink to keep receiving its
-    # owner's updates. Retain a matching proof if one already exists; otherwise
-    # discard stale module metadata and use the executable without claiming it.
-    if ! { [ -f "$ownership_file" ] && [ ! -L "$ownership_file" ] &&
-        [ -f "$real_bin" ] && [ ! -L "$real_bin" ] &&
-        [ "$ownership_file" -ef "$real_bin" ]; }; then
-        rm -f "$ownership_file"
+    # Version equality proves compatibility, not ownership. Retain a proof only
+    # while both identity and immutable installed content still match.
+    if ! proof_matches "$real_ownership_file" "$real_bin"; then
+        rm -f "$real_ownership_file"
     fi
-    ln -sfn "$real_bin" "$link_bin"
+    publish_owned_launcher
     exit 0
 fi
 
@@ -89,7 +170,7 @@ if [ -x "$system_binary" ] && [ "$("$system_binary" --version | head -1)" = "$ve
     # create a new shadow copy when the image binary is already sufficient.
     if [ -x "$real_bin" ]; then
         install_owned_real "$system_binary"
-        ln -sfn "$real_bin" "$link_bin"
+        publish_owned_launcher
     elif [ -L "$link_bin" ]; then
         # No local real copy to (re)point at, so this branch installs
         # nothing — only remove a leftover $link_bin in the two shapes
@@ -140,6 +221,5 @@ echo "==> Installing pinned Antigravity CLI ${version} compatibility copy..."
 curl -fsSL --retry 3 "$url" -o "$tarball"
 printf '%s  %s\n' "$sha512" "$tarball" | sha512sum --check -
 tar -xzf "$tarball" -C "$work_dir" antigravity
-install -d -m 0755 "$install_dir"
 install_owned_real "$work_dir/antigravity"
-ln -sfn "$real_bin" "$link_bin"
+publish_owned_launcher

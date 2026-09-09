@@ -59,13 +59,16 @@ canonical contract reconciliation for those constraints as well.
 - `docs/guides/devcontainers.md` (+ its jinja `template/` twin): drop the
   state-(d)/#1171 caveat in the Antigravity section now that the early return
   self-heals a leftover that would otherwise block reconciliation.
-- `ensure-antigravity-cli.sh` (+ its verbatim `template/` twin): authorize
-  deletion of `agy-real` only through matching inode-based ownership metadata,
-  never through ownership of the `agy` launcher, and reuse an existing
-  exact-version executable or symlink without replacing or claiming it.
+- `ensure-antigravity-cli.sh` and `bot-autonomy/antigravity.sh` (+ their
+  verbatim `template/` twins): give `agy` and `agy-real` separate durable
+  identity-and-content proofs, never infer ownership from launcher shape or
+  version, and publish each replacement through a recoverable transaction.
+  Cleanup deletes a path only while both its identity and immutable installed
+  content match, so an in-place external rewrite is preserved and an
+  interrupted old-to-new upgrade remains recognizable.
 - The delta and canonical bot-autonomy specs define disabled state in terms of
-  absence of module-owned remnants, explicitly allowing independent launchers
-  and requiring separate ownership proof for `agy-real`.
+  absence of independently proven module-owned remnants, explicitly allowing
+  independent launchers at the natural `agy → agy-real` target too.
 
 ## Capabilities
 

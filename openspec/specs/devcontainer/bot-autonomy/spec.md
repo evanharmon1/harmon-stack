@@ -507,16 +507,21 @@ unconditional and runs identically in both profiles: unlike the removed
 state (d), reaching a valid state here never depends on the bot profile's
 follow-on `apply` step. WHEN the marker reads anything other than
 `enabled` (`disabled`, or absent on an image built before this marker
-existed), it SHALL remove `agy` only when its exact link target or wrapper
-marker proves launcher ownership. Removing `agy-real` SHALL require matching
-independent ownership metadata — the installer's hard-link proof naming the
-same inode — because ownership of `agy` proves nothing about the executable
-the wrapper may optionally use. An unowned regular file or symlink at either
-path SHALL survive unchanged; stale ownership metadata that does not name the
-current `agy-real` inode SHALL be removed without deleting that independently
-replaced executable. Under this capability's own untampered enabled-to-disabled
-transition, those predicates still remove all managed state and reach state
-(c); externally supplied launchers are outside states (a)-(c) and are preserved.
+existed), it SHALL remove `agy` or `agy-real` only when that path's own
+independent ownership proof matches both its published filesystem identity and
+its immutable installed content (the link target for a symlink, or SHA-512 for
+a regular file). Target equality, wrapper-marker text, filename, version, and
+inode identity alone SHALL NOT authorize deletion. An unowned regular file or
+symlink at either path SHALL survive unchanged; stale ownership metadata SHALL
+be removed without deleting a path whose identity or content no longer matches.
+Each multi-path publish SHALL first record a recoverable transaction for the new
+generation, then publish the path, then atomically promote that transaction to
+its ownership proof. A following run SHALL either promote a transaction that
+matches the published path or discard a transaction that does not, so
+interruption cannot strand a published managed generation without recognizable
+proof. Under this capability's own untampered enabled-to-disabled transition,
+those predicates remove all managed state and reach state (c); externally
+supplied launchers are outside states (a)-(c) and are preserved.
 The bot-autonomy `antigravity` module, bot-only, SHALL act only on top of
 that: WHEN its own read of the marker is `enabled`, `apply` overwrites
 `~/.local/bin/agy` — whatever `ensure-antigravity-cli.sh` left there —
@@ -527,9 +532,10 @@ module-owned launcher while preserving independent user state) and SHALL
 restore `~/.gemini/antigravity-cli/settings.json`
 to its pre-managed state (via `apply-antigravity-settings.sh restore`).
 `verify` SHALL assert whichever managed state the marker's value implies:
-when disabled, it SHALL reject a module-owned symlink, a marker-owned wrapper,
-or any remaining `agy-real` ownership proof, while accepting an independent
-regular launcher or valid symlink. In the bot profile, where it runs, it SHALL
+when disabled, it SHALL reject any remaining launcher/executable ownership or
+transaction metadata, while accepting an independent regular launcher or valid
+symlink regardless of its target or wrapper-like content. In the bot profile,
+where it runs, it SHALL
 also fail on a dangling symlink regardless of the marker's value. The
 dev profile has no equivalent `verify` step, but does not need one for
 this invariant: `ensure-antigravity-cli.sh`'s own reconciliation on the
@@ -577,13 +583,13 @@ login/interactive shell, a Foreman-dispatched process, a cron job).
   — and the local `agy-real` is absent or does not satisfy the pinned version
 - **THEN** it downloads/reconciles the pinned binary at
   `~/.local/bin/agy-real` and (re)points `~/.local/bin/agy` at it as a
-  plain symlink — state (b) — publishing matching inode-based ownership
-  metadata before the executable is exposed
+  plain symlink — state (b) — publishing independent identity-and-content
+  proofs for both paths through recoverable transactions
 
 #### Scenario: an unowned exact-version agy-real is reused without being claimed
 - **WHEN** enabled setup finds an executable `~/.local/bin/agy-real` whose
-  first version line already matches the pin but whose inode has no matching
-  installer ownership proof, including when `agy-real` is a symlink
+  first version line already matches the pin but whose identity and content
+  have no matching installer ownership proof, including when `agy-real` is a symlink
 - **THEN** it leaves that executable and symlink target unchanged, creates no
   ownership proof for it, and may point `agy` at the compatible path; a later
   disabled run removes only the owned launcher and preserves `agy-real`
@@ -626,16 +632,34 @@ login/interactive shell, a Foreman-dispatched process, a cron job).
 - **WHEN** `HARMON_BOT_AUTONOMY_ANTIGRAVITY` is not `enabled` and
   `ensure-antigravity-cli.sh` runs — in the bot profile or the dev profile
 - **THEN** it does not download `agy-real`; it removes an owned `agy` launcher,
-  removes `agy-real` only when matching inode metadata independently proves
-  ownership, and preserves every unowned regular file or symlink at either path
+  removes `agy-real` only when its independent identity-and-content proof
+  matches, and preserves every unowned regular file or symlink at either path
 
 #### Scenario: a legacy pre-metadata agy-real is preserved
-- **WHEN** a disabled rolling update finds an `agy` launcher whose link target
-  or wrapper marker proves launcher ownership and a markerless `agy-real` left
-  by a release that predates executable ownership metadata
-- **THEN** it removes only `agy` and preserves `agy-real` byte-for-byte; its
-  path, version, prior management history, and relationship to `agy` do not
-  substitute for matching independent inode ownership proof
+- **WHEN** a disabled rolling update finds markerless `agy` and `agy-real`
+  paths left by a release that predates independent per-path ownership metadata
+- **THEN** it preserves both paths byte-for-byte; target, wrapper-marker text,
+  filename, version, and prior management history do not substitute for a
+  matching independent identity-and-content proof
+
+#### Scenario: an independent natural agy to agy-real symlink is preserved
+- **WHEN** disabled cleanup or verification finds an independently installed
+  `agy → ~/.local/bin/agy-real` symlink with no matching launcher proof
+- **THEN** cleanup preserves the symlink and verification accepts it; the
+  natural target relationship alone never implies module ownership
+
+#### Scenario: an in-place rewrite revokes executable deletion authority
+- **WHEN** an external installer rewrites a previously managed `agy-real` in
+  place, retaining its inode but changing its installed content
+- **THEN** disabled cleanup detects the fingerprint mismatch, preserves the
+  external content, and removes the stale ownership metadata
+
+#### Scenario: an interrupted upgrade is recovered across generations
+- **WHEN** an upgrade is interrupted after the new `agy-real` is published but
+  before its transaction is promoted over the old generation's ownership proof
+- **THEN** the next run recognizes the new path from the transaction's matching
+  identity and content, promotes that proof, and can clean the managed
+  executable without leaving an unrecognized orphan
 
 #### Scenario: bot apply installs the wrapper when enabled, over any replaceable value ensure-antigravity-cli.sh left
 - **WHEN** `HARMON_BOT_AUTONOMY_ANTIGRAVITY` reads `enabled` and the
@@ -674,18 +698,19 @@ login/interactive shell, a Foreman-dispatched process, a cron job).
 - **WHEN** `HARMON_BOT_AUTONOMY_ANTIGRAVITY` was previously `enabled`
   (`agy-real`, the symlink, and then the wrapper all installed) and a
   later render/rebuild carries the marker as `disabled`
-- **THEN** `ensure-antigravity-cli.sh` removes both `agy-real` and `agy`
-  plus the ownership proof on its next run, reaching state (c) absence; if an
-  external actor independently replaced either path, the non-matching proof
-  does not authorize deleting that replacement
+- **THEN** `ensure-antigravity-cli.sh` recovers any interrupted publication,
+  removes both `agy-real` and `agy` plus their ownership/transaction metadata
+  on its next run, and reaches state (c) absence; if an external actor replaced
+  either path or rewrote its content in place, the non-matching proof does not
+  authorize deleting that replacement
 
 #### Scenario: verify rejects disabled managed remnants and accepts unowned launchers
 - **WHEN** `HARMON_BOT_AUTONOMY_ANTIGRAVITY` is not `enabled` and `verify`
   runs in the bot profile
-- **THEN** `verify` rejects a managed `agy → agy-real` symlink, a marker-owned
-  wrapper, or any remaining `agy-real` ownership proof, but accepts an
-  independent regular launcher or valid symlink; dangling symlinks remain an
-  unconditional failure
+- **THEN** `verify` rejects any remaining launcher/executable ownership or
+  transaction metadata, but accepts an independent regular launcher or valid
+  symlink even when it naturally targets `agy-real` or resembles the wrapper;
+  dangling symlinks remain an unconditional failure
 
 #### Scenario: the wrapper precedes the system binary on the container-wide PATH
 - **WHEN** the bot `Dockerfile` is inspected
