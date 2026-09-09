@@ -33,9 +33,10 @@ install_owned_real() (
 # answer) — the only channel this verbatim, template-twinned script may read
 # to learn that per-repo answer. Anything other than "enabled" (including
 # absent, on an image built before this marker existed) means: no download,
-# and remove agy-real/agy only when agy's link target or wrapper marker proves
-# they came from this module. Independent files and symlinks at either path
-# belong to the user and survive a disabled run.
+# and remove agy only when its link target or wrapper marker proves ownership.
+# agy-real is removed only when its independent inode proof matches; launcher
+# ownership alone says nothing about the executable. Independent files and
+# symlinks at either path belong to the user and survive a disabled run.
 if [ "${HARMON_BOT_AUTONOMY_ANTIGRAVITY:-}" != "enabled" ]; then
     launcher_owned=false
     real_owned=false
@@ -44,17 +45,16 @@ if [ "${HARMON_BOT_AUTONOMY_ANTIGRAVITY:-}" != "enabled" ]; then
     elif [ -f "$link_bin" ] && [ ! -L "$link_bin" ] && grep -Fq "$wrapper_marker" "$link_bin"; then
         launcher_owned=true
     fi
-    if [ -e "$ownership_file" ] && [ -e "$real_bin" ] && [ "$ownership_file" -ef "$real_bin" ]; then
+    if [ -f "$ownership_file" ] && [ ! -L "$ownership_file" ] &&
+        [ -f "$real_bin" ] && [ ! -L "$real_bin" ] &&
+        [ "$ownership_file" -ef "$real_bin" ]; then
         real_owned=true
     fi
 
     if [ "$launcher_owned" = true ]; then
         rm -f "$link_bin"
     fi
-    if [ "$real_owned" = true ] ||
-        { [ "$launcher_owned" = true ] && [ ! -e "$ownership_file" ]; }; then
-        # The launcher predicate is the backward-compatible proof for copies
-        # installed before the durable ownership file existed.
+    if [ "$real_owned" = true ]; then
         rm -f "$real_bin"
     fi
     # The ownership file is module metadata. If it no longer names the same
@@ -68,7 +68,15 @@ fi
 # copy, which takes precedence in the repo-managed shell PATH.
 if [ -x "$real_bin" ] &&
     [ "$("$real_bin" --version | head -1)" = "$version" ]; then
-    install_owned_real "$real_bin"
+    # Version equality proves compatibility, not ownership. In particular, an
+    # independently managed symlink must stay a symlink to keep receiving its
+    # owner's updates. Retain a matching proof if one already exists; otherwise
+    # discard stale module metadata and use the executable without claiming it.
+    if ! { [ -f "$ownership_file" ] && [ ! -L "$ownership_file" ] &&
+        [ -f "$real_bin" ] && [ ! -L "$real_bin" ] &&
+        [ "$ownership_file" -ef "$real_bin" ]; }; then
+        rm -f "$ownership_file"
+    fi
     ln -sfn "$real_bin" "$link_bin"
     exit 0
 fi

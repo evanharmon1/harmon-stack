@@ -216,8 +216,8 @@ verify) cmd_verify ;;
 executable) echo "agy" ;;
 # bot-autonomy.sh's dispatch gate normally skips a module when its
 # declared executable is absent from PATH. That is wrong here: agy's
-# presence is exactly what apply/verify manage (ensure-antigravity-cli.sh
-# removes it when the option is disabled), so gating dispatch on it would
+# managed state is exactly what apply/verify reconcile (ensure-antigravity-cli.sh
+# removes owned remnants when disabled), so gating dispatch on presence would
 # skip the disabled branch's settings restore precisely when disabling —
 # the opposite of the intent. This module always runs; its own marker
 # check decides what to do.

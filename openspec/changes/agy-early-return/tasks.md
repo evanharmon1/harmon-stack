@@ -53,3 +53,18 @@
 - [x] 4.2 Tick this issue's `[CI]` acceptance criteria via
       `.claude/skills/track-work/assets/tick-criteria.sh` once each is
       independently verified against the code.
+
+## 5. Challenge-round-3 ownership remediation (#1205/#1207)
+
+- [x] 5.1 Remove launcher-derived authority to delete `agy-real`; require the
+      installer's matching inode proof, while preserving interrupted managed
+      install cleanup.
+- [x] 5.2 Reuse an unowned exact-version `agy-real` executable or symlink
+      without replacing it or publishing ownership metadata.
+- [x] 5.3 Add focused fixtures for system-binary-only setup followed by an
+      independent `agy-real`, exact-version symlink preservation, interrupted
+      install cleanup, and canonical/delta requirement consistency.
+- [x] 5.4 Reconcile this delta and the canonical bot-autonomy requirement to
+      ownership-based disabled cleanup and verification semantics.
+- [x] 5.5 Run `task test:bot-autonomy`, `task spec:validate`, `task check`,
+      `task test:template:all`, `task verify`, and `task security:secrets`.

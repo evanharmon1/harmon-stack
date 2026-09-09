@@ -70,10 +70,12 @@ repo regardless of that repo's answers, so the rendered `containerEnv`
 marker is the only channel through which a verbatim script can know a
 per-repo Copier answer at all.
 
-`ensure-antigravity-cli.sh` SHALL own `agy-real` and states (b)/(c): in
-**either** profile, WHEN the marker reads `enabled`, it either downloads
-or reconciles the pinned binary at `agy-real` and (re)points a plain
-`agy → agy-real` symlink (state b) — or, on its system-binary-sufficient
+`ensure-antigravity-cli.sh` SHALL own only an `agy-real` it installed and
+states (b)/(c): in **either** profile, WHEN the marker reads `enabled`, it
+either downloads or reconciles the pinned binary at `agy-real` and
+(re)points a plain `agy → agy-real` symlink (state b), reuses an existing
+exact-version executable without changing or claiming it — including an
+independently managed symlink — or, on its system-binary-sufficient
 early return (the pinned system binary is present on `PATH` and no
 executable local `agy-real` copy exists, `[ -x "$real_bin" ]` false),
 installs nothing itself and instead reconciles whatever already occupies
@@ -92,22 +94,30 @@ unconditional and runs identically in both profiles: unlike the removed
 state (d), reaching a valid state here never depends on the bot profile's
 follow-on `apply` step. WHEN the marker reads anything other than
 `enabled` (`disabled`, or absent on an image built before this marker
-existed), it SHALL ensure **neither** `agy-real` nor `agy` exists,
-removing either if a prior run (before a Copier-answer toggle) or a stale
-image left them behind — reaching state (c) directly, never state (b).
+existed), it SHALL remove `agy` only when its exact link target or wrapper
+marker proves launcher ownership. Removing `agy-real` SHALL require matching
+independent ownership metadata — the installer's hard-link proof naming the
+same inode — because ownership of `agy` proves nothing about the executable
+the wrapper may optionally use. An unowned regular file or symlink at either
+path SHALL survive unchanged; stale ownership metadata that does not name the
+current `agy-real` inode SHALL be removed without deleting that independently
+replaced executable. Under this capability's own untampered enabled-to-disabled
+transition, those predicates still remove all managed state and reach state
+(c); externally supplied launchers are outside states (a)-(c) and are preserved.
 The bot-autonomy `antigravity` module, bot-only, SHALL act only on top of
 that: WHEN its own read of the marker is `enabled`, `apply` overwrites
 `~/.local/bin/agy` — whatever `ensure-antigravity-cli.sh` left there —
 with the wrapper (state a); WHEN the marker is not `enabled`, `apply`
 SHALL NOT create, remove, or otherwise touch `agy` at all
-(`ensure-antigravity-cli.sh`, which runs first, has already left it
-absent — state (c) — and re-touching it would be redundant, not
-corrective) and SHALL restore `~/.gemini/antigravity-cli/settings.json`
+(`ensure-antigravity-cli.sh`, which runs first, has already removed any
+module-owned launcher while preserving independent user state) and SHALL
+restore `~/.gemini/antigravity-cli/settings.json`
 to its pre-managed state (via `apply-antigravity-settings.sh restore`).
-`verify` SHALL assert whichever of states (a)-(c) the marker's value
-implies is correct, and, **in the bot profile, where it runs**, SHALL
-fail on a dangling symlink regardless of the marker's value — no valid
-state among (a)-(c) is ever a symlink with a missing target there. The
+`verify` SHALL assert whichever managed state the marker's value implies:
+when disabled, it SHALL reject a module-owned symlink, a marker-owned wrapper,
+or any remaining `agy-real` ownership proof, while accepting an independent
+regular launcher or valid symlink. In the bot profile, where it runs, it SHALL
+also fail on a dangling symlink regardless of the marker's value. The
 dev profile has no equivalent `verify` step, but does not need one for
 this invariant: `ensure-antigravity-cli.sh`'s own reconciliation on the
 early return (above) is what keeps the dev profile's `agy` out of a
@@ -151,12 +161,19 @@ login/interactive shell, a Foreman-dispatched process, a cron job).
 #### Scenario: ensure-antigravity-cli.sh installs agy-real and the symlink when enabled, in either profile
 - **WHEN** `HARMON_BOT_AUTONOMY_ANTIGRAVITY` reads `enabled`,
   `ensure-antigravity-cli.sh` runs — in the bot profile or the dev profile
-  — and either a local `agy-real` copy already exists **and is
-  executable** or the current on-`PATH` system binary does not already
-  satisfy the pinned version
+  — and the local `agy-real` is absent or does not satisfy the pinned version
 - **THEN** it downloads/reconciles the pinned binary at
   `~/.local/bin/agy-real` and (re)points `~/.local/bin/agy` at it as a
-  plain symlink — state (b)
+  plain symlink — state (b) — publishing matching inode-based ownership
+  metadata before the executable is exposed
+
+#### Scenario: an unowned exact-version agy-real is reused without being claimed
+- **WHEN** enabled setup finds an executable `~/.local/bin/agy-real` whose
+  first version line already matches the pin but whose inode has no matching
+  installer ownership proof, including when `agy-real` is a symlink
+- **THEN** it leaves that executable and symlink target unchanged, creates no
+  ownership proof for it, and may point `agy` at the compatible path; a later
+  disabled run removes only the owned launcher and preserves `agy-real`
 
 #### Scenario: ensure-antigravity-cli.sh leaves agy absent when the current system binary already satisfies the pin and nothing pre-existed
 - **WHEN** `HARMON_BOT_AUTONOMY_ANTIGRAVITY` reads `enabled`,
@@ -192,12 +209,12 @@ login/interactive shell, a Foreman-dispatched process, a cron job).
   reconciliation; removing it here, with no replacement guaranteed on
   this branch, is the defect a first attempt at this fix had reverted for
 
-#### Scenario: ensure-antigravity-cli.sh leaves agy absent when disabled, in either profile
+#### Scenario: disabled cleanup removes only independently proven managed paths
 - **WHEN** `HARMON_BOT_AUTONOMY_ANTIGRAVITY` is not `enabled` and
   `ensure-antigravity-cli.sh` runs — in the bot profile or the dev profile
-- **THEN** it does not download `agy-real`, and removes `agy-real` and
-  `agy` if either exists from a prior run (before a Copier-answer toggle)
-  or a stale image
+- **THEN** it does not download `agy-real`; it removes an owned `agy` launcher,
+  removes `agy-real` only when matching inode metadata independently proves
+  ownership, and preserves every unowned regular file or symlink at either path
 
 #### Scenario: bot apply installs the wrapper when enabled, over any replaceable value ensure-antigravity-cli.sh left
 - **WHEN** `HARMON_BOT_AUTONOMY_ANTIGRAVITY` reads `enabled` and the
@@ -223,31 +240,31 @@ login/interactive shell, a Foreman-dispatched process, a cron job).
   early-return reconcile are out of scope for this fix and tracked as
   issue `#1179`
 
-#### Scenario: bot apply does not touch agy when disabled — it is already absent
+#### Scenario: bot apply does not touch agy when disabled after ownership cleanup
 - **WHEN** `HARMON_BOT_AUTONOMY_ANTIGRAVITY` is not `enabled` and the
   `antigravity` module's `apply` runs in the bot profile
 - **THEN** `apply` restores `~/.gemini/antigravity-cli/settings.json` via
   `apply-antigravity-settings.sh restore`, and does not create, remove, or
   otherwise touch `~/.local/bin/agy` — `ensure-antigravity-cli.sh`, having
-  already run, has already left it absent — state (c)
+  already run, has removed a module-owned launcher but preserved any
+  independently owned launcher
 
-#### Scenario: toggling the option off removes agy-real and agy entirely, not a symlink
+#### Scenario: toggling the option off removes all installer-owned launcher state
 - **WHEN** `HARMON_BOT_AUTONOMY_ANTIGRAVITY` was previously `enabled`
   (`agy-real`, the symlink, and then the wrapper all installed) and a
   later render/rebuild carries the marker as `disabled`
 - **THEN** `ensure-antigravity-cli.sh` removes both `agy-real` and `agy`
-  on its next run, reaching state (c) absence — not state (b), since a
-  symlink with no download step left to populate its target would be a
-  dangling link
+  plus the ownership proof on its next run, reaching state (c) absence; if an
+  external actor independently replaced either path, the non-matching proof
+  does not authorize deleting that replacement
 
-#### Scenario: verify asserts the disabled state is absence, not a symlink
+#### Scenario: verify rejects disabled managed remnants and accepts unowned launchers
 - **WHEN** `HARMON_BOT_AUTONOMY_ANTIGRAVITY` is not `enabled` and `verify`
   runs in the bot profile
-- **THEN** `verify` asserts `~/.local/bin/agy` is absent — a default-off
-  generated render never invokes the compatibility installer's download
-  path in the first place, so there is no `agy-real` for any symlink to
-  point at, and `verify` treats a symlink (dangling or not) in this state
-  as a failure, not the correct disabled state
+- **THEN** `verify` rejects a managed `agy → agy-real` symlink, a marker-owned
+  wrapper, or any remaining `agy-real` ownership proof, but accepts an
+  independent regular launcher or valid symlink; dangling symlinks remain an
+  unconditional failure
 
 #### Scenario: the wrapper precedes the system binary on the container-wide PATH
 - **WHEN** the bot `Dockerfile` is inspected
