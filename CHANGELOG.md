@@ -8,6 +8,14 @@ remains a manual override. New entries are appended above by release-please;
 entries at and below v3.0.0 were hand-written in
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) style.
 
+## [4.43.2](https://github.com/evanharmon1/harmon-init/compare/v4.43.1...v4.43.2) (2026-09-09)
+
+
+### Bug Fixes
+
+* **ci:** enforce pinned lint tool versions ([#1218](https://github.com/evanharmon1/harmon-init/issues/1218)) ([780d869](https://github.com/evanharmon1/harmon-init/commit/780d86903b29f878e46b6198185b5e2d8d1f233c))
+* **ci:** reclaim disk before devcontainer assertion ([#1216](https://github.com/evanharmon1/harmon-init/issues/1216)) ([d119b0b](https://github.com/evanharmon1/harmon-init/commit/d119b0b0869c713d3c0c39c9f40977a503d6355c))
+
 ## [4.43.1](https://github.com/evanharmon1/harmon-init/compare/v4.43.0...v4.43.1) (2026-09-09)
 
 
