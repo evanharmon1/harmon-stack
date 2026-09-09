@@ -2397,30 +2397,86 @@ fi
 dc_workflow=".github/workflows/devcontainer-build.yml"
 if [ -d .devcontainer ]; then
     [ -f "$dc_workflow" ] || err "$dc_workflow missing (devcontainer=true)"
-    python3 - "$dc_workflow" <<'PY' || err "the devcontainer workflow would wedge a required devcontainer-verify check (see stderr)"
+    python3 - "$dc_workflow" "$repo_root/$dc_workflow" <<'PY' || err "the devcontainer workflow violates its required structural invariants (see stderr)"
 import sys, pathlib, re
 
-text = pathlib.Path(sys.argv[1]).read_text()
-head = text.split("\njobs:", 1)[0]
+cleanup_step = "      - name: Free up runner disk space"
+assertion_step = "      - name: Assert bot-autonomy fail-closed policy in a running bot container"
+cleanup_fields = (
+    ("GitHub-hosted runner condition", "        if: runner.environment == 'github-hosted'"),
+    ("run block", "        run: |"),
+    ("established SDK cleanup", "          sudo rm -rf /usr/local/lib/android /usr/share/dotnet /opt/ghc /usr/share/swift"),
+    ("established image prune", "          sudo docker image prune --all --force || true"),
+    ("post-cleanup disk report", "          df -h /"),
+)
+
+
+def active_line(text, line):
+    """Match one active YAML line at its required indentation."""
+    return re.search(rf"^{re.escape(line)}$", text, re.M)
+
+
+def cleanup_guard_problems(assert_job, prefix):
+    """Validate the active cleanup step and its ordering within the assertion job."""
+    found = []
+    cleanup = active_line(assert_job, cleanup_step)
+    assertion = active_line(assert_job, assertion_step)
+    if not cleanup:
+        found.append(prefix + "devcontainer-assert-bot does not reclaim runner disk before its possible rebuild")
+    if not assertion:
+        found.append(prefix + "devcontainer-assert-bot has no running-container assertion step")
+    if not cleanup or not assertion:
+        return found
+    if cleanup.start() >= assertion.start():
+        found.append(prefix + "devcontainer-assert-bot reclaims disk after the assertion rebuild starts")
+        return found
+
+    cleanup_block = assert_job[cleanup.start():assertion.start()]
+    for label, line in cleanup_fields:
+        if not active_line(cleanup_block, line):
+            found.append(prefix + f"devcontainer-assert-bot disk reclamation has no active, correctly indented {label}")
+    return found
+
+
 problems = []
-if re.search(r"^\s+paths(-ignore)?:", head, re.M):
-    problems.append("the `on:` block has a paths filter — a required check that never reports blocks the merge")
-for trigger in ("push:", "pull_request:", "merge_group:"):
-    if not re.search(r"^\s+%s" % re.escape(trigger), head, re.M):
-        problems.append(f"the `on:` block is missing the {trigger[:-1]} trigger")
-jobs = re.split(r"^(?=  [A-Za-z0-9_-]+:$)", text, flags=re.M)
-verify_job = next((j for j in jobs if j.startswith("  devcontainer-verify:")), None)
-if not verify_job:
-    problems.append("has no devcontainer-verify aggregate job")
-elif not re.search(r"^\s+if:\s*always\(\)", verify_job, re.M):
-    problems.append("devcontainer-verify has no `if: always()` — it would not report when a leaf job is skipped")
-merge_group_job = next((j for j in jobs if j.startswith("  build-merge-group:")), None)
-if not merge_group_job:
-    problems.append("has no build-merge-group job — merge_group would run the credentialed build job instead")
-elif "packages:" in merge_group_job:
-    problems.append("build-merge-group declares a `packages:` permission — it must hold none at all")
-elif "docker/login-action" in merge_group_job:
-    problems.append("build-merge-group has a docker/login-action step — merge_group must never authenticate")
+for workflow in map(pathlib.Path, sys.argv[1:]):
+    text = workflow.read_text()
+    head = text.split("\njobs:", 1)[0]
+    prefix = f"{workflow}: "
+    if re.search(r"^\s+paths(-ignore)?:", head, re.M):
+        problems.append(prefix + "the `on:` block has a paths filter — a required check that never reports blocks the merge")
+    for trigger in ("push:", "pull_request:", "merge_group:"):
+        if not re.search(r"^\s+%s" % re.escape(trigger), head, re.M):
+            problems.append(prefix + f"the `on:` block is missing the {trigger[:-1]} trigger")
+    jobs = re.split(r"^(?=  [A-Za-z0-9_-]+:$)", text, flags=re.M)
+    verify_job = next((j for j in jobs if j.startswith("  devcontainer-verify:")), None)
+    if not verify_job:
+        problems.append(prefix + "has no devcontainer-verify aggregate job")
+    elif not re.search(r"^\s+if:\s*always\(\)", verify_job, re.M):
+        problems.append(prefix + "devcontainer-verify has no `if: always()` — it would not report when a leaf job is skipped")
+    merge_group_job = next((j for j in jobs if j.startswith("  build-merge-group:")), None)
+    if not merge_group_job:
+        problems.append(prefix + "has no build-merge-group job — merge_group would run the credentialed build job instead")
+    elif "packages:" in merge_group_job:
+        problems.append(prefix + "build-merge-group declares a `packages:` permission — it must hold none at all")
+    elif "docker/login-action" in merge_group_job:
+        problems.append(prefix + "build-merge-group has a docker/login-action step — merge_group must never authenticate")
+    assert_job = next((j for j in jobs if j.startswith("  devcontainer-assert-bot:")), None)
+    if not assert_job:
+        problems.append(prefix + "has no devcontainer-assert-bot job")
+        continue
+    workflow_cleanup_problems = cleanup_guard_problems(assert_job, prefix)
+    problems.extend(workflow_cleanup_problems)
+    if not workflow_cleanup_problems:
+        cleanup = active_line(assert_job, cleanup_step)
+        assertion = active_line(assert_job, assertion_step)
+        cleanup_block = assert_job[cleanup.start():assertion.start()]
+        for label, line in cleanup_fields:
+            commented_block = cleanup_block.replace(line, "# " + line, 1)
+            commented_job = assert_job[:cleanup.start()] + commented_block + assert_job[assertion.start():]
+            expected = prefix + f"devcontainer-assert-bot disk reclamation has no active, correctly indented {label}"
+            if expected not in cleanup_guard_problems(commented_job, prefix):
+                problems.append(prefix + f"commented-out {label} fixture incorrectly satisfies the structural guard")
 for problem in problems:
     print(f"  {problem}", file=sys.stderr)
 sys.exit(1 if problems else 0)
