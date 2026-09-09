@@ -2470,14 +2470,13 @@ for workflow in map(pathlib.Path, sys.argv[1:]):
     if not workflow_cleanup_problems:
         cleanup = active_line(assert_job, cleanup_step)
         assertion = active_line(assert_job, assertion_step)
-        commented_block = re.sub(
-            r"(?m)^(?=.)",
-            "# ",
-            assert_job[cleanup.start():assertion.start()],
-        )
-        commented_job = assert_job[:cleanup.start()] + commented_block + assert_job[assertion.start():]
-        if not cleanup_guard_problems(commented_job, prefix):
-            problems.append(prefix + "commented-out cleanup fixture incorrectly satisfies the structural guard")
+        cleanup_block = assert_job[cleanup.start():assertion.start()]
+        for label, line in cleanup_fields:
+            commented_block = cleanup_block.replace(line, "# " + line, 1)
+            commented_job = assert_job[:cleanup.start()] + commented_block + assert_job[assertion.start():]
+            expected = prefix + f"devcontainer-assert-bot disk reclamation has no active, correctly indented {label}"
+            if expected not in cleanup_guard_problems(commented_job, prefix):
+                problems.append(prefix + f"commented-out {label} fixture incorrectly satisfies the structural guard")
 for problem in problems:
     print(f"  {problem}", file=sys.stderr)
 sys.exit(1 if problems else 0)
