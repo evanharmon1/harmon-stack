@@ -150,7 +150,10 @@ remove_if_owned() {
     proof="$1"
     path="$2"
     label="$3"
-    proof_matches "$proof" "$path" || return 0
+    if ! proof_matches "$proof" "$path"; then
+        rm -f "$proof"
+        return 0
+    fi
 
     quarantine="$(mktemp "${path}.harmon-init-quarantine.XXXXXX")"
     rm -f "$quarantine"
@@ -164,13 +167,24 @@ remove_if_owned() {
     # pathname is never deleted on the strength of an earlier proof check.
     if proof_matches "$proof" "$quarantine"; then
         rm -f "$quarantine"
+        rm -f "$proof"
         return 0
     fi
 
     # The captured generation was not ours. Restore without overwriting a new
     # public value; if another actor already filled the pathname, retain the
     # quarantined bytes and fail loudly with their recovery location.
-    mv -n "$quarantine" "$path" 2>/dev/null || true
+    if [ -L "$quarantine" ]; then
+        quarantine_target="$(readlink "$quarantine")"
+        if ln -s -n "$quarantine_target" "$path" 2>/dev/null; then
+            rm -f "$quarantine"
+        fi
+    elif [ -f "$quarantine" ]; then
+        if ln -n "$quarantine" "$path" 2>/dev/null; then
+            rm -f "$quarantine"
+        fi
+    fi
+    rm -f "$proof"
     if path_exists "$quarantine"; then
         echo "Concurrent replacement preserved at ${quarantine}; refusing ${label} cleanup" >&2
         return 1
@@ -223,9 +237,6 @@ if [ "${HARMON_BOT_AUTONOMY_ANTIGRAVITY:-}" != "enabled" ]; then
     cleanup_ok=true
     remove_if_owned "$launcher_ownership_file" "$link_bin" "agy launcher" || cleanup_ok=false
     remove_if_owned "$real_ownership_file" "$real_bin" "agy-real executable" || cleanup_ok=false
-    # Stale proof belongs to the module, but never authorizes deletion of a
-    # path whose current identity and content no longer match.
-    rm -f "$launcher_ownership_file" "$real_ownership_file"
     [ "$cleanup_ok" = true ] || exit 1
     exit 0
 fi

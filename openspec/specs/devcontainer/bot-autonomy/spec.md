@@ -517,7 +517,10 @@ be removed without deleting a path whose identity or content no longer matches.
 Cleanup of a proof-matching public path SHALL atomically move that generation to
 a unique same-directory quarantine and revalidate the moved identity and content
 before deletion; a non-matching captured generation SHALL be restored without
-overwriting any newer public value, or retained with a loud recovery path.
+overwriting or following any newer public value (including a symlink to a
+directory), or retained with a loud recovery path. If the quarantine move fails,
+the matching proof SHALL remain for a later retry; once revalidation demonstrates
+that the captured generation is not owned, its now-stale proof SHALL be removed.
 Before either launcher writer recovers or publishes through the fixed
 transaction names, it SHALL hold one shared per-install-directory lock, so
 concurrent ensure/module invocations cannot discard or promote each other's

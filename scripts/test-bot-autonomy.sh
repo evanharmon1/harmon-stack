@@ -1767,6 +1767,85 @@ if find "${agy24_quarantine_home}/.local/bin" -name 'agy-real.harmon-init-quaran
     fail "quarantine cleanup did not restore the captured independent replacement"
 fi
 
+# A failed quarantine move leaves the managed generation in place, so its
+# still-matching proof must survive for a later cleanup retry.
+agy24_quarantine_fail_home="${work_dir}/agy24-quarantine-fail-home"
+agy24_quarantine_fail_system="${agy24_quarantine_fail_home}/system-agy"
+agy24_quarantine_fail_bin="${agy24_quarantine_fail_home}/fake-bin"
+agy24_quarantine_fail_target="${agy24_quarantine_fail_home}/.local/bin/agy-real"
+mkdir -p "${agy24_quarantine_fail_home}/.local/bin" "$agy24_quarantine_fail_bin"
+printf '#!/bin/sh\nprintf "1.0.0\\n"\n' >"$agy24_quarantine_fail_target"
+printf '#!/bin/sh\nprintf "1.1.11\\n"\n' >"$agy24_quarantine_fail_system"
+chmod +x "$agy24_quarantine_fail_target" "$agy24_quarantine_fail_system"
+HOME="$agy24_quarantine_fail_home" HARMON_BOT_AUTONOMY_ANTIGRAVITY=enabled \
+    HARMON_ANTIGRAVITY_SYSTEM_BINARY="$agy24_quarantine_fail_system" \
+    bash "$ensure_script" >/dev/null
+printf '%s\n' '#!/bin/sh' \
+    'if [ "$#" -eq 3 ] && [ "$1" = "-f" ] && [ "$2" = "$HARMON_TEST_QUARANTINE_TARGET" ]; then' \
+    '    case "$3" in' \
+    '    "$HARMON_TEST_QUARANTINE_TARGET".harmon-init-quarantine.*) exit 74 ;;' \
+    '    esac' \
+    'fi' \
+    'exec "$HARMON_TEST_REAL_MV" "$@"' >"${agy24_quarantine_fail_bin}/mv"
+chmod +x "${agy24_quarantine_fail_bin}/mv"
+if HOME="$agy24_quarantine_fail_home" HARMON_BOT_AUTONOMY_ANTIGRAVITY=disabled \
+    HARMON_TEST_QUARANTINE_TARGET="$agy24_quarantine_fail_target" \
+    HARMON_TEST_REAL_MV="$agy24_quarantine_real_mv" \
+    PATH="${agy24_quarantine_fail_bin}:${PATH}" bash "$ensure_script" >/dev/null 2>&1; then
+    fail "disabled cleanup accepted a failed managed-executable quarantine"
+fi
+[ -x "$agy24_quarantine_fail_target" ] &&
+    [ -f "${agy24_quarantine_fail_home}/.local/bin/.agy-real.harmon-init-owned" ] ||
+    fail "failed quarantine discarded the retryable executable or its ownership proof"
+
+# If a concurrent actor publishes a symlink to a directory after quarantine,
+# restore must not follow it and move captured bytes inside that directory.
+agy24_dirlink_home="${work_dir}/agy24-dirlink-home"
+agy24_dirlink_system="${agy24_dirlink_home}/system-agy"
+agy24_dirlink_bin="${agy24_dirlink_home}/fake-bin"
+agy24_dirlink_target="${agy24_dirlink_home}/.local/bin/agy-real"
+agy24_dirlink_destination="${agy24_dirlink_home}/independent-directory"
+agy24_dirlink_stderr="${agy24_dirlink_home}/cleanup.stderr"
+mkdir -p "${agy24_dirlink_home}/.local/bin" "$agy24_dirlink_bin" "$agy24_dirlink_destination"
+printf '#!/bin/sh\nprintf "1.0.0\\n"\n' >"$agy24_dirlink_target"
+printf '#!/bin/sh\nprintf "1.1.11\\n"\n' >"$agy24_dirlink_system"
+chmod +x "$agy24_dirlink_target" "$agy24_dirlink_system"
+HOME="$agy24_dirlink_home" HARMON_BOT_AUTONOMY_ANTIGRAVITY=enabled \
+    HARMON_ANTIGRAVITY_SYSTEM_BINARY="$agy24_dirlink_system" \
+    bash "$ensure_script" >/dev/null
+printf '%s\n' '#!/bin/sh' \
+    'if [ "$#" -eq 3 ] && [ "$1" = "-f" ] && [ "$2" = "$HARMON_TEST_QUARANTINE_TARGET" ]; then' \
+    '    case "$3" in' \
+    '    "$HARMON_TEST_QUARANTINE_TARGET".harmon-init-quarantine.*)' \
+    '        rm -f "$2"' \
+    '        printf "captured independent bytes\\n" >"$2"' \
+    '        "$HARMON_TEST_REAL_MV" -f "$2" "$3"' \
+    '        ln -s "$HARMON_TEST_DIRECTORY_TARGET" "$2"' \
+    '        exit 0' \
+    '        ;;' \
+    '    esac' \
+    'fi' \
+    'exec "$HARMON_TEST_REAL_MV" "$@"' >"${agy24_dirlink_bin}/mv"
+chmod +x "${agy24_dirlink_bin}/mv"
+if HOME="$agy24_dirlink_home" HARMON_BOT_AUTONOMY_ANTIGRAVITY=disabled \
+    HARMON_TEST_QUARANTINE_TARGET="$agy24_dirlink_target" \
+    HARMON_TEST_DIRECTORY_TARGET="$agy24_dirlink_destination" \
+    HARMON_TEST_REAL_MV="$agy24_quarantine_real_mv" \
+    PATH="${agy24_dirlink_bin}:${PATH}" bash "$ensure_script" >/dev/null 2>"$agy24_dirlink_stderr"; then
+    fail "cleanup did not fail closed while retaining quarantined bytes"
+fi
+[ -L "$agy24_dirlink_target" ] &&
+    [ "$(readlink "$agy24_dirlink_target")" = "$agy24_dirlink_destination" ] ||
+    fail "cleanup replaced the concurrent directory symlink"
+agy24_dirlink_recovery="$(find "${agy24_dirlink_home}/.local/bin" \
+    -name 'agy-real.harmon-init-quarantine.*' -print -quit)"
+[ -n "$agy24_dirlink_recovery" ] && [ -f "$agy24_dirlink_recovery" ] &&
+    grep -Fq "$agy24_dirlink_recovery" "$agy24_dirlink_stderr" ||
+    fail "cleanup did not retain and report the captured recovery path"
+[ ! -e "${agy24_dirlink_destination}/$(basename "$agy24_dirlink_recovery")" ] &&
+    [ ! -e "${agy24_dirlink_home}/.local/bin/.agy-real.harmon-init-owned" ] ||
+    fail "cleanup followed a directory symlink or retained stale executable proof"
+
 # The in-flight delta is the source for this correction and is reconciled into
 # the canonical requirement in the same commit. Compare the complete modified
 # requirement when those root-only OpenSpec artifacts are present; generated
