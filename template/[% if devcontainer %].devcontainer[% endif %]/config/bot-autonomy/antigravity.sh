@@ -32,7 +32,44 @@ AGY_REAL_OWNERSHIP="${BOT_AUTONOMY_AGY_OWNERSHIP:-$(dirname "$AGY_REAL")/.agy-re
 AGY_REAL_TRANSACTION="${BOT_AUTONOMY_AGY_TRANSACTION:-$(dirname "$AGY_REAL")/.agy-real.harmon-init-transaction}"
 AGY_LINK_OWNERSHIP="${BOT_AUTONOMY_AGY_LINK_OWNERSHIP:-$(dirname "$AGY_LINK")/.agy.harmon-init-owned}"
 AGY_LINK_TRANSACTION="${BOT_AUTONOMY_AGY_LINK_TRANSACTION:-$(dirname "$AGY_LINK")/.agy.harmon-init-transaction}"
+AGY_LOCK="${BOT_AUTONOMY_AGY_LOCK:-$(dirname "$AGY_LINK")/.agy.harmon-init-lock}"
 AGY_SYSTEM_BINARY="${HARMON_ANTIGRAVITY_SYSTEM_BINARY:-/usr/local/bin/agy}"
+lock_backend=""
+
+release_launcher_lock() {
+    if [ "$lock_backend" = "shlock" ] && [ -f "$AGY_LOCK" ] && [ ! -L "$AGY_LOCK" ] &&
+        [ "$(cat "$AGY_LOCK")" = "$$" ]; then
+        rm -f "$AGY_LOCK"
+    fi
+    lock_backend=""
+}
+
+trap release_launcher_lock EXIT
+
+acquire_launcher_lock() {
+    install -d -m 0755 "$(dirname "$AGY_LINK")"
+    if command -v flock >/dev/null 2>&1; then
+        exec 9<"$(dirname "$AGY_LINK")"
+        flock -n 9 || {
+            echo "antigravity: launcher reconciliation is already running" >&2
+            return 1
+        }
+        lock_backend="flock"
+    elif command -v shlock >/dev/null 2>&1; then
+        shlock -f "$AGY_LOCK" -p "$$" || {
+            echo "antigravity: launcher reconciliation is already running" >&2
+            return 1
+        }
+        lock_backend="shlock"
+    else
+        echo "antigravity: launcher reconciliation requires flock or shlock" >&2
+        return 1
+    fi
+}
+
+metadata_exists() {
+    [ -e "$1" ] || [ -L "$1" ]
+}
 
 marker_enabled() {
     [ "${HARMON_BOT_AUTONOMY_ANTIGRAVITY:-}" = "enabled" ]
@@ -94,7 +131,9 @@ install_wrapper() (
 cmd_apply() {
     if marker_enabled; then
         bash "$APPLY_SETTINGS" apply "$BOT_DEFAULTS" "$PWD"
+        acquire_launcher_lock
         install_wrapper
+        release_launcher_lock
         echo "==> antigravity: autonomous policy applied (wrapper installed)"
     else
         bash "$APPLY_SETTINGS" restore
@@ -197,11 +236,11 @@ verify_wrapper_enabled() {
 }
 
 verify_agy_unmanaged() {
-    if [ -e "$AGY_LINK_OWNERSHIP" ] || [ -e "$AGY_LINK_TRANSACTION" ]; then
+    if metadata_exists "$AGY_LINK_OWNERSHIP" || metadata_exists "$AGY_LINK_TRANSACTION"; then
         echo "antigravity: verify failed — managed ownership metadata remains for ${AGY_LINK} while Antigravity autonomy is disabled-by-option" >&2
         exit 1
     fi
-    if [ -e "$AGY_REAL_OWNERSHIP" ] || [ -e "$AGY_REAL_TRANSACTION" ]; then
+    if metadata_exists "$AGY_REAL_OWNERSHIP" || metadata_exists "$AGY_REAL_TRANSACTION"; then
         echo "antigravity: verify failed — managed ownership metadata remains for ${AGY_REAL} while Antigravity autonomy is disabled-by-option" >&2
         exit 1
     fi

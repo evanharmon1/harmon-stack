@@ -13,6 +13,59 @@ real_ownership_file="${install_dir}/.agy-real.harmon-init-owned"
 real_transaction_file="${install_dir}/.agy-real.harmon-init-transaction"
 launcher_ownership_file="${install_dir}/.agy.harmon-init-owned"
 launcher_transaction_file="${install_dir}/.agy.harmon-init-transaction"
+lock_file="${install_dir}/.agy.harmon-init-lock"
+lock_backend=""
+work_dir=""
+
+release_lock() {
+    if [ "$lock_backend" = "shlock" ] && [ -f "$lock_file" ] && [ ! -L "$lock_file" ] &&
+        [ "$(cat "$lock_file")" = "$$" ]; then
+        rm -f "$lock_file"
+    fi
+    lock_backend=""
+}
+
+cleanup() {
+    if [ -n "$work_dir" ]; then
+        rm -rf "$work_dir"
+    fi
+    release_lock
+}
+
+trap cleanup EXIT
+
+acquire_lock() {
+    if command -v flock >/dev/null 2>&1; then
+        # Lock the already-open install directory instead of a pathname that
+        # could be replaced while this process holds the lock. The descriptor
+        # remains open until the script exits.
+        exec 9<"$install_dir"
+        if ! flock -n 9; then
+            echo "Antigravity launcher reconciliation is already running" >&2
+            return 1
+        fi
+        lock_backend="flock"
+    elif command -v shlock >/dev/null 2>&1; then
+        # macOS test/development hosts do not ship flock. shlock uses an
+        # atomic link and safely reaps a dead PID's stale lock.
+        if ! shlock -f "$lock_file" -p "$$"; then
+            echo "Antigravity launcher reconciliation is already running" >&2
+            return 1
+        fi
+        lock_backend="shlock"
+    else
+        echo "Antigravity launcher reconciliation requires flock or shlock" >&2
+        return 1
+    fi
+}
+
+path_exists() {
+    [ -e "$1" ] || [ -L "$1" ]
+}
+
+metadata_exists() {
+    [ -e "$1" ] || [ -L "$1" ]
+}
 
 path_identity() {
     stat -c '%d:%i' "$1" 2>/dev/null || stat -f '%d:%i' "$1"
@@ -26,7 +79,7 @@ proof_value() {
     sed -n "s/^$2=//p" "$1" | head -1
 }
 
-proof_matches() {
+proof_matches() (
     proof="$1"
     path="$2"
     [ -f "$proof" ] && [ ! -L "$proof" ] || return 1
@@ -43,7 +96,7 @@ proof_matches() {
         ;;
     *) return 1 ;;
     esac
-}
+)
 
 write_proof() (
     path="$1"
@@ -66,7 +119,7 @@ write_proof() (
 discard_transaction() {
     transaction="$1"
     prefix="$2"
-    temp_name="$(proof_value "$transaction" temp_name 2>/dev/null)"
+    temp_name="$(proof_value "$transaction" temp_name 2>/dev/null || true)"
     case "$temp_name" in
     "${prefix}.tmp."*) rm -f "${install_dir}/${temp_name}" ;;
     esac
@@ -78,12 +131,44 @@ recover_transaction() {
     ownership="$2"
     path="$3"
     prefix="$4"
-    [ -e "$transaction" ] || return 0
+    metadata_exists "$transaction" || return 0
     if proof_matches "$transaction" "$path"; then
         mv -f "$transaction" "$ownership"
     else
         discard_transaction "$transaction" "$prefix"
     fi
+}
+
+remove_if_owned() {
+    proof="$1"
+    path="$2"
+    label="$3"
+    proof_matches "$proof" "$path" || return 0
+
+    quarantine="$(mktemp "${path}.harmon-init-quarantine.XXXXXX")"
+    rm -f "$quarantine"
+    if ! mv -f "$path" "$quarantine"; then
+        echo "Could not quarantine managed ${label} before cleanup" >&2
+        return 1
+    fi
+
+    # Renaming captures one exact generation. Revalidate that moved inode and
+    # immutable content before deleting it, so a replacement racing the public
+    # pathname is never deleted on the strength of an earlier proof check.
+    if proof_matches "$proof" "$quarantine"; then
+        rm -f "$quarantine"
+        return 0
+    fi
+
+    # The captured generation was not ours. Restore without overwriting a new
+    # public value; if another actor already filled the pathname, retain the
+    # quarantined bytes and fail loudly with their recovery location.
+    mv -n "$quarantine" "$path" 2>/dev/null || true
+    if path_exists "$quarantine"; then
+        echo "Concurrent replacement preserved at ${quarantine}; refusing ${label} cleanup" >&2
+        return 1
+    fi
+    return 0
 }
 
 publish_owned_launcher() (
@@ -115,6 +200,7 @@ install_owned_real() (
 )
 
 install -d -m 0755 "$install_dir"
+acquire_lock
 recover_transaction "$real_transaction_file" "$real_ownership_file" "$real_bin" "agy-real"
 recover_transaction "$launcher_transaction_file" "$launcher_ownership_file" "$link_bin" "agy"
 
@@ -127,24 +213,13 @@ recover_transaction "$launcher_transaction_file" "$launcher_ownership_file" "$li
 # Launcher shape and executable version are never ownership authority.
 # Independent files and symlinks at either path survive a disabled run.
 if [ "${HARMON_BOT_AUTONOMY_ANTIGRAVITY:-}" != "enabled" ]; then
-    launcher_owned=false
-    real_owned=false
-    if proof_matches "$launcher_ownership_file" "$link_bin"; then
-        launcher_owned=true
-    fi
-    if proof_matches "$real_ownership_file" "$real_bin"; then
-        real_owned=true
-    fi
-
-    if [ "$launcher_owned" = true ]; then
-        rm -f "$link_bin"
-    fi
-    if [ "$real_owned" = true ]; then
-        rm -f "$real_bin"
-    fi
+    cleanup_ok=true
+    remove_if_owned "$launcher_ownership_file" "$link_bin" "agy launcher" || cleanup_ok=false
+    remove_if_owned "$real_ownership_file" "$real_bin" "agy-real executable" || cleanup_ok=false
     # Stale proof belongs to the module, but never authorizes deletion of a
     # path whose current identity and content no longer match.
     rm -f "$launcher_ownership_file" "$real_ownership_file"
+    [ "$cleanup_ok" = true ] || exit 1
     exit 0
 fi
 
@@ -213,7 +288,6 @@ aarch64 | arm64)
 esac
 
 work_dir="$(mktemp -d)"
-trap 'rm -rf "$work_dir"' EXIT
 tarball="$work_dir/${archive}.tar.gz"
 url="https://storage.googleapis.com/antigravity-public/antigravity-cli/${version}-${build}/${platform}/${archive}.tar.gz"
 

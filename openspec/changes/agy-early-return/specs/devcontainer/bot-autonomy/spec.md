@@ -101,6 +101,14 @@ a regular file). Target equality, wrapper-marker text, filename, version, and
 inode identity alone SHALL NOT authorize deletion. An unowned regular file or
 symlink at either path SHALL survive unchanged; stale ownership metadata SHALL
 be removed without deleting a path whose identity or content no longer matches.
+Cleanup of a proof-matching public path SHALL atomically move that generation to
+a unique same-directory quarantine and revalidate the moved identity and content
+before deletion; a non-matching captured generation SHALL be restored without
+overwriting any newer public value, or retained with a loud recovery path.
+Before either launcher writer recovers or publishes through the fixed
+transaction names, it SHALL hold one shared per-install-directory lock, so
+concurrent ensure/module invocations cannot discard or promote each other's
+generation.
 Each multi-path publish SHALL first record a recoverable transaction for the new
 generation, then publish the path, then atomically promote that transaction to
 its ownership proof. A following run SHALL either promote a transaction that
@@ -221,6 +229,29 @@ login/interactive shell, a Foreman-dispatched process, a cron job).
 - **THEN** it does not download `agy-real`; it removes an owned `agy` launcher,
   removes `agy-real` only when its independent identity-and-content proof
   matches, and preserves every unowned regular file or symlink at either path
+
+#### Scenario: cleanup revalidates the atomically captured generation
+- **WHEN** a public launcher or executable matches its ownership proof during
+  the initial cleanup check, but an external actor replaces it before cleanup
+  captures the path
+- **THEN** cleanup atomically moves the generation currently at the public path
+  to a unique same-directory quarantine, detects that the moved identity or
+  content does not match, and restores or retains those independent bytes
+  instead of deleting them under the stale proof
+
+#### Scenario: concurrent launcher reconciliation is serialized
+- **WHEN** two `ensure-antigravity-cli.sh` invocations, or ensure and the bot
+  module's wrapper publisher, overlap against the same install directory
+- **THEN** exactly one holds the shared launcher-state lock and may recover or
+  publish through the fixed transaction names; the other fails closed before
+  it can discard or promote the active generation
+
+#### Scenario: dangling metadata symlinks are not treated as absence
+- **WHEN** an ownership or transaction metadata pathname is a symlink whose
+  target does not exist
+- **THEN** disabled verification rejects the remaining managed metadata, and
+  reconciliation treats the symlink itself as present and removes it without
+  following its target
 
 #### Scenario: a legacy pre-metadata agy-real is preserved
 - **WHEN** a disabled rolling update finds markerless `agy` and `agy-real`

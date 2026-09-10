@@ -1616,6 +1616,115 @@ HOME="$agy24_upgrade_home" HARMON_BOT_AUTONOMY_ANTIGRAVITY=disabled \
     [ ! -e "${agy24_upgrade_home}/.local/bin/.agy-real.harmon-init-transaction" ] ||
     fail "disabled cleanup did not recover and remove an interrupted managed upgrade"
 
+# Dangling ownership/transaction symlinks are metadata presence, even though
+# test -e reports false. Verification must reject them and ensure must clean
+# them without following their targets.
+agy24_dangling_meta_home="${work_dir}/agy24-dangling-metadata-home"
+mkdir -p "${agy24_dangling_meta_home}/.local/bin"
+ln -s "${agy24_dangling_meta_home}/missing-real-proof" \
+    "${agy24_dangling_meta_home}/.local/bin/.agy-real.harmon-init-transaction"
+ln -s "${agy24_dangling_meta_home}/missing-link-proof" \
+    "${agy24_dangling_meta_home}/.local/bin/.agy.harmon-init-owned"
+if HOME="$agy24_dangling_meta_home" HARMON_BOT_AUTONOMY_ANTIGRAVITY=disabled \
+    bash "$agy_module" verify >/dev/null 2>&1; then
+    fail "disabled verify accepted dangling Antigravity metadata symlinks"
+fi
+HOME="$agy24_dangling_meta_home" HARMON_BOT_AUTONOMY_ANTIGRAVITY=disabled \
+    bash "$ensure_script" >/dev/null
+[ ! -L "${agy24_dangling_meta_home}/.local/bin/.agy-real.harmon-init-transaction" ] &&
+    [ ! -L "${agy24_dangling_meta_home}/.local/bin/.agy.harmon-init-owned" ] ||
+    fail "disabled cleanup left dangling Antigravity metadata symlinks"
+HOME="$agy24_dangling_meta_home" HARMON_BOT_AUTONOMY_ANTIGRAVITY=disabled \
+    bash "$agy_module" verify >/dev/null ||
+    fail "disabled verify failed after dangling metadata cleanup"
+
+# Two concurrent reconciliation runs must not share or discard each other's
+# fixed transaction names. Hold the first run inside its system-version probe
+# (after lock acquisition), then prove the second fails closed on the lock.
+agy24_concurrent_home="${work_dir}/agy24-concurrent-home"
+agy24_concurrent_system="${agy24_concurrent_home}/system-agy"
+agy24_concurrent_started="${agy24_concurrent_home}/started"
+agy24_concurrent_release="${agy24_concurrent_home}/release"
+mkdir -p "${agy24_concurrent_home}/.local/bin"
+printf '#!/bin/sh\nprintf "1.0.0\\n"\n' >"${agy24_concurrent_home}/.local/bin/agy-real"
+printf '%s\n' '#!/bin/sh' \
+    'printf "started\\n" >"$HARMON_TEST_LOCK_STARTED"' \
+    'count=0' \
+    'while [ ! -e "$HARMON_TEST_LOCK_RELEASE" ]; do' \
+    '    count=$((count + 1))' \
+    '    [ "$count" -lt 200 ] || exit 70' \
+    '    sleep 0.05' \
+    'done' \
+    'printf "1.1.11\\n"' >"$agy24_concurrent_system"
+chmod +x "${agy24_concurrent_home}/.local/bin/agy-real" "$agy24_concurrent_system"
+HOME="$agy24_concurrent_home" HARMON_BOT_AUTONOMY_ANTIGRAVITY=enabled \
+    HARMON_ANTIGRAVITY_SYSTEM_BINARY="$agy24_concurrent_system" \
+    HARMON_TEST_LOCK_STARTED="$agy24_concurrent_started" \
+    HARMON_TEST_LOCK_RELEASE="$agy24_concurrent_release" \
+    bash "$ensure_script" >/dev/null 2>&1 &
+agy24_concurrent_pid=$!
+agy24_wait=0
+while [ ! -e "$agy24_concurrent_started" ] && [ "$agy24_wait" -lt 200 ]; do
+    agy24_wait=$((agy24_wait + 1))
+    sleep 0.05
+done
+if [ ! -e "$agy24_concurrent_started" ]; then
+    touch "$agy24_concurrent_release"
+    wait "$agy24_concurrent_pid" 2>/dev/null || true
+    fail "concurrent reconciliation fixture never reached its locked probe"
+fi
+if HOME="$agy24_concurrent_home" HARMON_BOT_AUTONOMY_ANTIGRAVITY=enabled \
+    HARMON_ANTIGRAVITY_SYSTEM_BINARY="$agy24_concurrent_system" \
+    HARMON_TEST_LOCK_STARTED="$agy24_concurrent_started" \
+    HARMON_TEST_LOCK_RELEASE="$agy24_concurrent_release" \
+    bash "$ensure_script" >/dev/null 2>&1; then
+    touch "$agy24_concurrent_release"
+    wait "$agy24_concurrent_pid" 2>/dev/null || true
+    fail "a concurrent reconciliation entered the shared transaction protocol"
+fi
+touch "$agy24_concurrent_release"
+wait "$agy24_concurrent_pid" ||
+    fail "the lock-owning reconciliation failed after its peer was refused"
+
+# Reproduce replacement after the initial proof match but before cleanup's old
+# unlink point. The atomic move must capture and revalidate that replacement,
+# then restore it instead of deleting it under the stale proof.
+agy24_quarantine_home="${work_dir}/agy24-quarantine-home"
+agy24_quarantine_system="${agy24_quarantine_home}/system-agy"
+agy24_quarantine_fake_bin="${agy24_quarantine_home}/fake-bin"
+agy24_quarantine_target="${agy24_quarantine_home}/.local/bin/agy-real"
+agy24_quarantine_real_mv="$(command -v mv)"
+mkdir -p "${agy24_quarantine_home}/.local/bin" "$agy24_quarantine_fake_bin"
+printf '#!/bin/sh\nprintf "1.0.0\\n"\n' >"$agy24_quarantine_target"
+printf '#!/bin/sh\nprintf "1.1.11\\n"\n' >"$agy24_quarantine_system"
+chmod +x "$agy24_quarantine_target" "$agy24_quarantine_system"
+HOME="$agy24_quarantine_home" HARMON_BOT_AUTONOMY_ANTIGRAVITY=enabled \
+    HARMON_ANTIGRAVITY_SYSTEM_BINARY="$agy24_quarantine_system" \
+    bash "$ensure_script" >/dev/null
+printf '%s\n' '#!/bin/sh' \
+    'if [ "$#" -eq 3 ] && [ "$1" = "-f" ] && [ "$2" = "$HARMON_TEST_QUARANTINE_TARGET" ]; then' \
+    '    case "$3" in' \
+    '    "$HARMON_TEST_QUARANTINE_TARGET".harmon-init-quarantine.*)' \
+    '        rm -f "$2"' \
+    '        printf "independent replacement\\n" >"$2"' \
+    '        ;;' \
+    '    esac' \
+    'fi' \
+    'exec "$HARMON_TEST_REAL_MV" "$@"' >"${agy24_quarantine_fake_bin}/mv"
+chmod +x "${agy24_quarantine_fake_bin}/mv"
+HOME="$agy24_quarantine_home" HARMON_BOT_AUTONOMY_ANTIGRAVITY=disabled \
+    HARMON_TEST_QUARANTINE_TARGET="$agy24_quarantine_target" \
+    HARMON_TEST_REAL_MV="$agy24_quarantine_real_mv" \
+    PATH="${agy24_quarantine_fake_bin}:${PATH}" bash "$ensure_script" >/dev/null
+[ "$(cat "$agy24_quarantine_target")" = "independent replacement" ] &&
+    [ ! -e "${agy24_quarantine_home}/.local/bin/.agy-real.harmon-init-owned" ] &&
+    [ ! -e "${agy24_quarantine_home}/.local/bin/.agy.harmon-init-owned" ] ||
+    fail "quarantine cleanup deleted a concurrent replacement or retained stale proof"
+if find "${agy24_quarantine_home}/.local/bin" -name 'agy-real.harmon-init-quarantine.*' -print |
+    grep -q .; then
+    fail "quarantine cleanup did not restore the captured independent replacement"
+fi
+
 # The in-flight delta is the source for this correction and is reconciled into
 # the canonical requirement in the same commit. Compare the complete modified
 # requirement when those root-only OpenSpec artifacts are present; generated
