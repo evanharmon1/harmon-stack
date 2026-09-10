@@ -71,6 +71,17 @@ metadata_exists() {
     [ -e "$1" ] || [ -L "$1" ]
 }
 
+file_sha512() {
+    if command -v sha512sum >/dev/null 2>&1; then
+        sha512sum "$1" | awk '{print $1}'
+    elif command -v shasum >/dev/null 2>&1; then
+        shasum -a 512 "$1" | awk '{print $1}'
+    else
+        echo "antigravity: SHA-512 verification requires sha512sum or shasum" >&2
+        return 1
+    fi
+}
+
 marker_enabled() {
     [ "${HARMON_BOT_AUTONOMY_ANTIGRAVITY:-}" = "enabled" ]
 }
@@ -119,7 +130,7 @@ install_wrapper() (
     chmod 0755 "$tmp"
     printf 'type=file\nidentity=%s\nsha512=%s\ntemp_name=%s\n' \
         "$(stat -c '%d:%i' "$tmp" 2>/dev/null || stat -f '%d:%i' "$tmp")" \
-        "$(sha512sum "$tmp" | awk '{print $1}')" \
+        "$(file_sha512 "$tmp")" \
         "$(basename "$tmp")" >"$proof_tmp"
     chmod 0600 "$proof_tmp"
     mv -f "$proof_tmp" "$AGY_LINK_TRANSACTION"

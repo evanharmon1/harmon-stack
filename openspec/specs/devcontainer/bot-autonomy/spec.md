@@ -588,7 +588,8 @@ login/interactive shell, a Foreman-dispatched process, a cron job).
 #### Scenario: ensure-antigravity-cli.sh installs agy-real and the symlink when enabled, in either profile
 - **WHEN** `HARMON_BOT_AUTONOMY_ANTIGRAVITY` reads `enabled`,
   `ensure-antigravity-cli.sh` runs — in the bot profile or the dev profile
-  — and the local `agy-real` is absent or does not satisfy the pinned version
+  — and the local `agy-real` is absent or does not satisfy the pinned version,
+  and the on-`PATH` system binary does not already satisfy the pin
 - **THEN** it downloads/reconciles the pinned binary at
   `~/.local/bin/agy-real` and (re)points `~/.local/bin/agy` at it as a
   plain symlink — state (b) — publishing independent identity-and-content

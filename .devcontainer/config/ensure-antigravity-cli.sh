@@ -72,7 +72,14 @@ path_identity() {
 }
 
 file_sha512() {
-    sha512sum "$1" | awk '{print $1}'
+    if command -v sha512sum >/dev/null 2>&1; then
+        sha512sum "$1" | awk '{print $1}'
+    elif command -v shasum >/dev/null 2>&1; then
+        shasum -a 512 "$1" | awk '{print $1}'
+    else
+        echo "SHA-512 verification requires sha512sum or shasum" >&2
+        return 1
+    fi
 }
 
 proof_value() {
@@ -264,7 +271,7 @@ if [ -x "$system_binary" ] && [ "$("$system_binary" --version | head -1)" = "$ve
         # wrapper for good in the dev profile, which has no follow-on
         # apply step to reinstall it (#1171).
         if [ ! -e "$link_bin" ] || [ -d "$link_bin" ]; then
-            rm -f "$link_bin"
+            rm -f "$link_bin" "$launcher_ownership_file"
         fi
     fi
     exit 0
@@ -293,7 +300,10 @@ url="https://storage.googleapis.com/antigravity-public/antigravity-cli/${version
 
 echo "==> Installing pinned Antigravity CLI ${version} compatibility copy..."
 curl -fsSL --retry 3 "$url" -o "$tarball"
-printf '%s  %s\n' "$sha512" "$tarball" | sha512sum --check -
+[ "$(file_sha512 "$tarball")" = "$sha512" ] || {
+    echo "Antigravity CLI archive SHA-512 mismatch" >&2
+    exit 1
+}
 tar -xzf "$tarball" -C "$work_dir" antigravity
 install_owned_real "$work_dir/antigravity"
 publish_owned_launcher

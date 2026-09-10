@@ -22,6 +22,14 @@ fail() {
     exit 1
 }
 
+test_file_sha512() {
+    if command -v sha512sum >/dev/null 2>&1; then
+        sha512sum "$1" | awk '{print $1}'
+    else
+        shasum -a 512 "$1" | awk '{print $1}'
+    fi
+}
+
 script_dir="$(cd "$(dirname "$0")" && pwd)"
 repo_root="$(git -C "$script_dir" rev-parse --show-toplevel)"
 bot_autonomy="${repo_root}/.devcontainer/scripts/bot-autonomy.sh"
@@ -50,7 +58,7 @@ trap 'rm -rf "$work_dir"' EXIT
 # claude/codex/agy/opencode are never among them, by construction.
 safe_bin="${work_dir}/safe-bin"
 mkdir -p "$safe_bin"
-for tool in bash cat grep jq yq sha256sum git mktemp mv chmod install mkdir basename dirname cmp rm; do
+for tool in bash cat grep jq yq sha256sum shasum git mktemp mv chmod install mkdir basename dirname cmp rm; do
     tool_path="$(command -v "$tool" 2>/dev/null || true)"
     [ -n "$tool_path" ] && ln -sf "$tool_path" "${safe_bin}/${tool}"
 done
@@ -261,6 +269,26 @@ wrapper_out="$("${wrapper_home}/.local/bin/agy" -p "already flagged" --dangerous
 case "$wrapper_out" in
 *"--dangerously-skip-permissions --dangerously-skip-permissions"*) fail "wrapper duplicated an already-present flag: ${wrapper_out}" ;;
 esac
+
+# A stock macOS host provides shasum rather than GNU sha512sum. Exercise the
+# fallback under a deliberately narrow PATH that contains only shasum.
+agy9_portable_home="${work_dir}/agy-wrapper-portable-home"
+agy9_portable_bin="${work_dir}/agy-wrapper-portable-bin"
+agy9_apply_stub="${work_dir}/agy-wrapper-portable-apply"
+mkdir -p "$agy9_portable_home" "$agy9_portable_bin"
+for tool in awk bash basename cat chmod dirname flock install mkdir mktemp mv rm shasum shlock stat; do
+    tool_path="$(command -v "$tool" 2>/dev/null || true)"
+    [ -n "$tool_path" ] && ln -s "$tool_path" "${agy9_portable_bin}/${tool}"
+done
+printf '#!/bin/sh\nexit 0\n' >"$agy9_apply_stub"
+chmod +x "$agy9_apply_stub"
+HOME="$agy9_portable_home" HARMON_BOT_AUTONOMY_ANTIGRAVITY=enabled \
+    BOT_AUTONOMY_ANTIGRAVITY_APPLY_SCRIPT="$agy9_apply_stub" \
+    PATH="$agy9_portable_bin" bash "$agy_module" apply >/dev/null ||
+    fail "Antigravity wrapper proof hashing did not fall back to shasum"
+[ -x "${agy9_portable_home}/.local/bin/agy" ] &&
+    [ -f "${agy9_portable_home}/.local/bin/.agy.harmon-init-owned" ] ||
+    fail "shasum fallback did not publish the wrapper and ownership proof"
 
 echo "==> 10. Antigravity: dangling symlink fails verify regardless of marker"
 dangling_home="${work_dir}/agy-dangling-home"
@@ -1256,6 +1284,20 @@ agy21_run "$agy21_dangling_home"
 [ ! -L "${agy21_dangling_home}/.local/bin/agy" ] && [ ! -e "${agy21_dangling_home}/.local/bin/agy" ] ||
     fail "the system-binary-sufficient early return left a dangling agy symlink in place"
 
+# Removing a dangling launcher also retires any stale ownership proof for that
+# pathname. Otherwise a later independent symlink could be judged using proof
+# from the removed generation.
+agy21_owned_dangling_home="${work_dir}/agy21-owned-dangling-home"
+mkdir -p "${agy21_owned_dangling_home}/.local/bin"
+ln -s "${agy21_owned_dangling_home}/.local/bin/agy-real" \
+    "${agy21_owned_dangling_home}/.local/bin/agy"
+printf 'stale proof for removed launcher\n' \
+    >"${agy21_owned_dangling_home}/.local/bin/.agy.harmon-init-owned"
+agy21_run "$agy21_owned_dangling_home"
+[ ! -L "${agy21_owned_dangling_home}/.local/bin/agy" ] &&
+    [ ! -e "${agy21_owned_dangling_home}/.local/bin/.agy.harmon-init-owned" ] ||
+    fail "the system-binary-sufficient early return left stale launcher ownership proof"
+
 # A symlink to an existing DIRECTORY is not dangling, but bot-autonomy/
 # antigravity.sh's install_wrapper does \`mv -f \$tmp \$AGY_LINK\`, which lands
 # INSIDE an existing directory target instead of replacing the link — this
@@ -1587,7 +1629,7 @@ printf '#!/bin/sh\nprintf "1.0.0\\n"\n' >"${agy24_upgrade_home}/.local/bin/agy-r
 chmod +x "${agy24_upgrade_home}/.local/bin/agy-real"
 agy24_old_identity="$(stat -c '%d:%i' "${agy24_upgrade_home}/.local/bin/agy-real" 2>/dev/null ||
     stat -f '%d:%i' "${agy24_upgrade_home}/.local/bin/agy-real")"
-agy24_old_sha="$(sha512sum "${agy24_upgrade_home}/.local/bin/agy-real" | awk '{print $1}')"
+agy24_old_sha="$(test_file_sha512 "${agy24_upgrade_home}/.local/bin/agy-real")"
 printf 'type=file\nidentity=%s\nsha512=%s\ntemp_name=\n' \
     "$agy24_old_identity" "$agy24_old_sha" >"${agy24_upgrade_home}/.local/bin/.agy-real.harmon-init-owned"
 printf '#!/bin/sh\nprintf "1.1.11\\n"\n' >"$agy24_upgrade_system"
