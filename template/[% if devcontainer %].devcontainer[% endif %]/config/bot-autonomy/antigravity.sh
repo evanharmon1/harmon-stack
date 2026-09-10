@@ -82,6 +82,46 @@ file_sha512() {
     fi
 }
 
+path_identity() {
+    stat -c '%d:%i' "$1" 2>/dev/null || stat -f '%d:%i' "$1"
+}
+
+proof_value() {
+    sed -n "s/^$2=//p" "$1" | head -1
+}
+
+launcher_proof_matches() (
+    proof="$1"
+    path="$2"
+    [ -f "$proof" ] && [ ! -L "$proof" ] && [ -f "$path" ] && [ ! -L "$path" ] || return 1
+    [ "$(proof_value "$proof" type)" = "file" ] || return 1
+    expected_identity="$(proof_value "$proof" identity)"
+    [ -n "$expected_identity" ] || return 1
+    actual_identity="$(path_identity "$path" 2>/dev/null)" || return 1
+    [ -n "$actual_identity" ] && [ "$expected_identity" = "$actual_identity" ] || return 1
+    expected_digest="$(proof_value "$proof" sha512)"
+    [ -n "$expected_digest" ] || return 1
+    actual_digest="$(file_sha512 "$path")" || return 1
+    [ -n "$actual_digest" ] && [ "$expected_digest" = "$actual_digest" ]
+)
+
+discard_launcher_transaction() {
+    temp_name="$(proof_value "$AGY_LINK_TRANSACTION" temp_name 2>/dev/null || true)"
+    case "$temp_name" in
+    agy.tmp.*) rm -f "$(dirname "$AGY_LINK")/${temp_name}" ;;
+    esac
+    rm -f "$AGY_LINK_TRANSACTION"
+}
+
+recover_launcher_transaction() {
+    metadata_exists "$AGY_LINK_TRANSACTION" || return 0
+    if launcher_proof_matches "$AGY_LINK_TRANSACTION" "$AGY_LINK"; then
+        mv -f "$AGY_LINK_TRANSACTION" "$AGY_LINK_OWNERSHIP"
+    else
+        discard_launcher_transaction
+    fi
+}
+
 marker_enabled() {
     [ "${HARMON_BOT_AUTONOMY_ANTIGRAVITY:-}" = "enabled" ]
 }
@@ -123,14 +163,19 @@ WRAPPER
 
 install_wrapper() (
     install -d -m 0755 "$(dirname "$AGY_LINK")"
+    recover_launcher_transaction
     tmp="$(mktemp "$(dirname "$AGY_LINK")/agy.tmp.XXXXXX")"
     proof_tmp="$(mktemp "${AGY_LINK_TRANSACTION}.tmp.XXXXXX")"
     trap 'rm -f "$tmp" "$proof_tmp"' EXIT
     write_wrapper "$tmp"
     chmod 0755 "$tmp"
+    identity="$(path_identity "$tmp")" || return 1
+    [ -n "$identity" ] || return 1
+    digest="$(file_sha512 "$tmp")" || return 1
+    [ -n "$digest" ] || return 1
     printf 'type=file\nidentity=%s\nsha512=%s\ntemp_name=%s\n' \
-        "$(stat -c '%d:%i' "$tmp" 2>/dev/null || stat -f '%d:%i' "$tmp")" \
-        "$(file_sha512 "$tmp")" \
+        "$identity" \
+        "$digest" \
         "$(basename "$tmp")" >"$proof_tmp"
     chmod 0600 "$proof_tmp"
     mv -f "$proof_tmp" "$AGY_LINK_TRANSACTION"

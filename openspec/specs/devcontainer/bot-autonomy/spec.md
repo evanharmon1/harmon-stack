@@ -513,7 +513,10 @@ its immutable installed content (the link target for a symlink, or SHA-512 for
 a regular file). Target equality, wrapper-marker text, filename, version, and
 inode identity alone SHALL NOT authorize deletion. An unowned regular file or
 symlink at either path SHALL survive unchanged; stale ownership metadata SHALL
-be removed without deleting a path whose identity or content no longer matches.
+be removed without deleting a path whose identity or content no longer matches,
+including orphan executable proof encountered by a system-binary-only enabled
+run. Every file proof SHALL contain a nonempty SHA-512 produced by a successful
+hash command; hash failure SHALL neither authorize cleanup nor publish proof.
 Cleanup of a proof-matching public path SHALL atomically move that generation to
 a unique same-directory quarantine and revalidate the moved identity and content
 before deletion; a non-matching captured generation SHALL be restored without
@@ -521,6 +524,8 @@ overwriting or following any newer public value (including a symlink to a
 directory), or retained with a loud recovery path. If the quarantine move fails,
 the matching proof SHALL remain for a later retry; once revalidation demonstrates
 that the captured generation is not owned, its now-stale proof SHALL be removed.
+The proof SHALL record the unique quarantine name before the move, so a following
+run recovers that exact generation if interruption occurs after the move.
 Before either launcher writer recovers or publishes through the fixed
 transaction names, it SHALL hold one shared per-install-directory lock, so
 concurrent ensure/module invocations cannot discard or promote each other's
@@ -530,7 +535,8 @@ generation, then publish the path, then atomically promote that transaction to
 its ownership proof. A following run SHALL either promote a transaction that
 matches the published path or discard a transaction that does not, so
 interruption cannot strand a published managed generation without recognizable
-proof. Under this capability's own untampered enabled-to-disabled transition,
+proof. Each writer SHALL complete that recovery before replacing its transaction
+metadata with a new generation. Under this capability's own untampered enabled-to-disabled transition,
 those predicates remove all managed state and reach state (c); externally
 supplied launchers are outside states (a)-(c) and are preserved.
 The bot-autonomy `antigravity` module, bot-only, SHALL act only on top of

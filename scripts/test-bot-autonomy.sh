@@ -1846,6 +1846,88 @@ agy24_dirlink_recovery="$(find "${agy24_dirlink_home}/.local/bin" \
     [ ! -e "${agy24_dirlink_home}/.local/bin/.agy-real.harmon-init-owned" ] ||
     fail "cleanup followed a directory symlink or retained stale executable proof"
 
+# A system-binary-only run retires an orphan proof before a later independent
+# agy-real can occupy the pathname.
+agy24_orphan_home="${work_dir}/agy24-orphan-proof-home"
+mkdir -p "${agy24_orphan_home}/.local/bin"
+printf 'type=file\nidentity=1:1\nsha512=stale\ntemp_name=\n' >"${agy24_orphan_home}/.local/bin/.agy-real.harmon-init-owned"
+agy21_run "$agy24_orphan_home"
+[ ! -e "${agy24_orphan_home}/.local/bin/.agy-real.harmon-init-owned" ] || fail "system-binary run retained orphan agy-real proof"
+printf '#!/bin/sh\nprintf "independent\\n"\n' >"${agy24_orphan_home}/.local/bin/agy-real"
+chmod +x "${agy24_orphan_home}/.local/bin/agy-real"
+HOME="$agy24_orphan_home" HARMON_BOT_AUTONOMY_ANTIGRAVITY=disabled bash "$ensure_script" >/dev/null
+[ "$("${agy24_orphan_home}/.local/bin/agy-real")" = independent ] || fail "cleanup deleted later independent agy-real"
+
+# Recover a matching wrapper transaction before attempting a new publication.
+agy24_wtx_home="${work_dir}/agy24-wrapper-transaction-home"
+agy24_wtx_bin="${agy24_wtx_home}/fake-bin"
+agy24_wtx_stub="${agy24_wtx_home}/settings-stub.sh"
+agy24_wtx_recovered="${agy24_wtx_home}/recovered"
+agy24_wtx_real_mv="$(command -v mv)"
+mkdir -p "${agy24_wtx_home}/.local/bin" "$agy24_wtx_bin"
+printf '#!/bin/sh\nexit 0\n' >"$agy24_wtx_stub"
+chmod +x "$agy24_wtx_stub"
+HOME="$agy24_wtx_home" HARMON_BOT_AUTONOMY_ANTIGRAVITY=enabled BOT_AUTONOMY_ANTIGRAVITY_APPLY_SCRIPT="$agy24_wtx_stub" bash "$agy_module" apply >/dev/null
+mv "${agy24_wtx_home}/.local/bin/.agy.harmon-init-owned" "${agy24_wtx_home}/.local/bin/.agy.harmon-init-transaction"
+printf '%s\n' '#!/bin/sh' \
+    'if [ "$3" = "$HARMON_TEST_LINK_OWNERSHIP" ]; then touch "$HARMON_TEST_RECOVERED"; fi' \
+    'if [ "$3" = "$HARMON_TEST_LINK_TRANSACTION" ]; then case "$2" in *.harmon-init-transaction.tmp.*) exit 75 ;; esac; fi' \
+    'exec "$HARMON_TEST_REAL_MV" "$@"' >"${agy24_wtx_bin}/mv"
+chmod +x "${agy24_wtx_bin}/mv"
+if HOME="$agy24_wtx_home" HARMON_BOT_AUTONOMY_ANTIGRAVITY=enabled BOT_AUTONOMY_ANTIGRAVITY_APPLY_SCRIPT="$agy24_wtx_stub" \
+    HARMON_TEST_LINK_OWNERSHIP="${agy24_wtx_home}/.local/bin/.agy.harmon-init-owned" \
+    HARMON_TEST_LINK_TRANSACTION="${agy24_wtx_home}/.local/bin/.agy.harmon-init-transaction" \
+    HARMON_TEST_RECOVERED="$agy24_wtx_recovered" HARMON_TEST_REAL_MV="$agy24_wtx_real_mv" \
+    PATH="${agy24_wtx_bin}:${PATH}" bash "$agy_module" apply >/dev/null 2>&1; then
+    fail "wrapper transaction fixture did not interrupt new publication"
+fi
+[ -e "$agy24_wtx_recovered" ] && [ -f "${agy24_wtx_home}/.local/bin/.agy.harmon-init-owned" ] &&
+    [ ! -e "${agy24_wtx_home}/.local/bin/.agy.harmon-init-transaction" ] || fail "wrapper publisher overwrote prior transaction"
+
+# Empty digests cannot prove ownership, and a failed hash cannot publish a wrapper.
+agy24_hash_home="${work_dir}/agy24-hash-failure-home"
+agy24_hash_bin="${agy24_hash_home}/fake-bin"
+agy24_hash_stub="${agy24_hash_home}/settings-stub.sh"
+mkdir -p "${agy24_hash_home}/.local/bin" "$agy24_hash_bin"
+printf '#!/bin/sh\nprintf "independent\\n"\n' >"${agy24_hash_home}/.local/bin/agy-real"
+chmod +x "${agy24_hash_home}/.local/bin/agy-real"
+agy24_hash_identity="$(stat -c '%d:%i' "${agy24_hash_home}/.local/bin/agy-real" 2>/dev/null || stat -f '%d:%i' "${agy24_hash_home}/.local/bin/agy-real")"
+printf 'type=file\nidentity=%s\nsha512=\ntemp_name=\n' "$agy24_hash_identity" >"${agy24_hash_home}/.local/bin/.agy-real.harmon-init-owned"
+HOME="$agy24_hash_home" HARMON_BOT_AUTONOMY_ANTIGRAVITY=disabled bash "$ensure_script" >/dev/null
+[ "$("${agy24_hash_home}/.local/bin/agy-real")" = independent ] && [ ! -e "${agy24_hash_home}/.local/bin/.agy-real.harmon-init-owned" ] || fail "empty digest authorized cleanup"
+printf '#!/bin/sh\nexit 64\n' >"${agy24_hash_bin}/sha512sum"
+printf '#!/bin/sh\nexit 0\n' >"$agy24_hash_stub"
+chmod +x "${agy24_hash_bin}/sha512sum" "$agy24_hash_stub"
+if HOME="$agy24_hash_home" HARMON_BOT_AUTONOMY_ANTIGRAVITY=enabled BOT_AUTONOMY_ANTIGRAVITY_APPLY_SCRIPT="$agy24_hash_stub" \
+    PATH="${agy24_hash_bin}:${PATH}" bash "$agy_module" apply >/dev/null 2>&1; then fail "failed SHA-512 command published wrapper"; fi
+[ ! -e "${agy24_hash_home}/.local/bin/agy" ] && [ ! -e "${agy24_hash_home}/.local/bin/.agy.harmon-init-owned" ] &&
+    [ ! -e "${agy24_hash_home}/.local/bin/.agy.harmon-init-transaction" ] || fail "hash failure left managed wrapper state"
+
+# Persist the quarantine name before moving, so a following run can recover a
+# move that completed immediately before the process failed.
+agy24_qr_home="${work_dir}/agy24-quarantine-recovery-home"
+agy24_qr_system="${agy24_qr_home}/system-agy"
+agy24_qr_bin="${agy24_qr_home}/fake-bin"
+agy24_qr_target="${agy24_qr_home}/.local/bin/agy-real"
+mkdir -p "${agy24_qr_home}/.local/bin" "$agy24_qr_bin"
+printf '#!/bin/sh\nprintf "1.0.0\\n"\n' >"$agy24_qr_target"
+printf '#!/bin/sh\nprintf "1.1.11\\n"\n' >"$agy24_qr_system"
+chmod +x "$agy24_qr_target" "$agy24_qr_system"
+HOME="$agy24_qr_home" HARMON_BOT_AUTONOMY_ANTIGRAVITY=enabled HARMON_ANTIGRAVITY_SYSTEM_BINARY="$agy24_qr_system" bash "$ensure_script" >/dev/null
+printf '%s\n' '#!/bin/sh' \
+    'if [ "$#" -eq 3 ] && [ "$1" = "-f" ] && [ "$2" = "$HARMON_TEST_QUARANTINE_TARGET" ]; then' \
+    'case "$3" in "$HARMON_TEST_QUARANTINE_TARGET".harmon-init-quarantine.*) "$HARMON_TEST_REAL_MV" "$@"; exit 75 ;; esac; fi' \
+    'exec "$HARMON_TEST_REAL_MV" "$@"' >"${agy24_qr_bin}/mv"
+chmod +x "${agy24_qr_bin}/mv"
+if HOME="$agy24_qr_home" HARMON_BOT_AUTONOMY_ANTIGRAVITY=disabled HARMON_TEST_QUARANTINE_TARGET="$agy24_qr_target" \
+    HARMON_TEST_REAL_MV="$agy24_quarantine_real_mv" PATH="${agy24_qr_bin}:${PATH}" bash "$ensure_script" >/dev/null 2>&1; then
+    fail "interrupted quarantine fixture did not fail"
+fi
+[ ! -e "$agy24_qr_target" ] && grep -q '^temp_name=agy-real.harmon-init-quarantine\.' "${agy24_qr_home}/.local/bin/.agy-real.harmon-init-owned" || fail "quarantine recovery name was not durable"
+HOME="$agy24_qr_home" HARMON_BOT_AUTONOMY_ANTIGRAVITY=disabled bash "$ensure_script" >/dev/null
+[ ! -e "${agy24_qr_home}/.local/bin/.agy-real.harmon-init-owned" ] &&
+    ! find "${agy24_qr_home}/.local/bin" -name 'agy-real.harmon-init-quarantine.*' -print | grep -q . || fail "interrupted quarantine was not recovered"
+
 # The in-flight delta is the source for this correction and is reconciled into
 # the canonical requirement in the same commit. Compare the complete modified
 # requirement when those root-only OpenSpec artifacts are present; generated

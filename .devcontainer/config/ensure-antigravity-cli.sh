@@ -89,13 +89,23 @@ proof_value() {
 proof_matches() (
     proof="$1"
     path="$2"
+    expected_identity=""
+    actual_identity=""
+    expected_digest=""
+    actual_digest=""
     [ -f "$proof" ] && [ ! -L "$proof" ] || return 1
-    [ "$(proof_value "$proof" identity)" = "$(path_identity "$path" 2>/dev/null)" ] || return 1
+    expected_identity="$(proof_value "$proof" identity)"
+    [ -n "$expected_identity" ] || return 1
+    actual_identity="$(path_identity "$path" 2>/dev/null)" || return 1
+    [ -n "$actual_identity" ] && [ "$expected_identity" = "$actual_identity" ] || return 1
 
     case "$(proof_value "$proof" type)" in
     file)
-        [ -f "$path" ] && [ ! -L "$path" ] &&
-            [ "$(proof_value "$proof" sha512)" = "$(file_sha512 "$path")" ]
+        [ -f "$path" ] && [ ! -L "$path" ] || return 1
+        expected_digest="$(proof_value "$proof" sha512)"
+        [ -n "$expected_digest" ] || return 1
+        actual_digest="$(file_sha512 "$path")" || return 1
+        [ -n "$actual_digest" ] && [ "$expected_digest" = "$actual_digest" ]
         ;;
     symlink)
         [ -L "$path" ] &&
@@ -112,12 +122,18 @@ write_proof() (
     proof_tmp="$(mktemp "${proof}.tmp.XXXXXX")"
     trap 'rm -f "$proof_tmp"' EXIT
 
+    identity="$(path_identity "$path")" || return 1
+    [ -n "$identity" ] || return 1
     if [ -L "$path" ]; then
+        target="$(readlink "$path")" || return 1
+        [ -n "$target" ] || return 1
         printf 'type=symlink\nidentity=%s\ntarget=%s\ntemp_name=%s\n' \
-            "$(path_identity "$path")" "$(readlink "$path")" "$temp_name" >"$proof_tmp"
+            "$identity" "$target" "$temp_name" >"$proof_tmp"
     else
+        digest="$(file_sha512 "$path")" || return 1
+        [ -n "$digest" ] || return 1
         printf 'type=file\nidentity=%s\nsha512=%s\ntemp_name=%s\n' \
-            "$(path_identity "$path")" "$(file_sha512 "$path")" "$temp_name" >"$proof_tmp"
+            "$identity" "$digest" "$temp_name" >"$proof_tmp"
     fi
     chmod 0600 "$proof_tmp"
     mv -f "$proof_tmp" "$proof"
@@ -150,6 +166,20 @@ remove_if_owned() {
     proof="$1"
     path="$2"
     label="$3"
+    prior_temp_name="$(proof_value "$proof" temp_name 2>/dev/null || true)"
+    case "$prior_temp_name" in
+    "$(basename "$path")".harmon-init-quarantine.*)
+        prior_quarantine="$(dirname "$path")/${prior_temp_name}"
+        if path_exists "$prior_quarantine" && proof_matches "$proof" "$prior_quarantine"; then
+            if ! rm -f "$prior_quarantine"; then
+                echo "Could not remove recovered managed ${label} at ${prior_quarantine}" >&2
+                return 1
+            fi
+            rm -f "$proof"
+            return 0
+        fi
+        ;;
+    esac
     if ! proof_matches "$proof" "$path"; then
         rm -f "$proof"
         return 0
@@ -157,6 +187,10 @@ remove_if_owned() {
 
     quarantine="$(mktemp "${path}.harmon-init-quarantine.XXXXXX")"
     rm -f "$quarantine"
+    if ! write_proof "$path" "$proof" "$(basename "$quarantine")"; then
+        echo "Could not record managed ${label} cleanup recovery state" >&2
+        return 1
+    fi
     if ! mv -f "$path" "$quarantine"; then
         echo "Could not quarantine managed ${label} before cleanup" >&2
         return 1
@@ -261,6 +295,9 @@ if [ -x "$system_binary" ] && [ "$("$system_binary" --version | head -1)" = "$ve
     # volume. Interactive shells put ~/.local/bin first, so an older executable
     # would shadow the newly pinned and smoke-tested shared-image binary. Do not
     # create a new shadow copy when the image binary is already sufficient.
+    if ! proof_matches "$real_ownership_file" "$real_bin"; then
+        rm -f "$real_ownership_file"
+    fi
     if [ -x "$real_bin" ]; then
         install_owned_real "$system_binary"
         publish_owned_launcher
